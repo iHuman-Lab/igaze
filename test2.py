@@ -8,11 +8,11 @@ Created on Mon Oct  7 17:12:05 2024
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+
 
 
 # Load the CSV file
-file_path = (r"Data_handling/pcadf.csv")
+file_path = (r"C:\Users\elahe\igaze\pcadf.csv")
 data = pd.read_csv(file_path)
 
 # Convert the string to list
@@ -39,17 +39,3 @@ frame_id = data['frame_id']
 filtered_data = data[data['saccade_amplitude'] < 0.1]
 
 
-
-
-heatmap_data = filtered_data.pivot_table(index='frame_id', values='saccade_amplitude', aggfunc='mean')
-
-# Create the heatmap using seaborn
-sns.heatmap(heatmap_data, annot=True, cmap='coolwarm', linewidths=.8)
-
-# Add titles and labels
-plt.title('Amplitude by Frame ID')
-plt.xlabel('Amplitude')
-plt.ylabel('Frame ID')
-
-# Show the plot
-plt.show()
