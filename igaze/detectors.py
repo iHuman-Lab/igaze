@@ -261,8 +261,8 @@ def scan_path(fixations):
 
     Parameters
     ----------
-    fixations : _type_
-        _description_
+    fixations : list
+        A list of fixations
 
     Returns
     -------
