@@ -1,10 +1,8 @@
 import sys
-from contextlib import contextmanager
-
-import feather
+from contextlib import contextmanager, suppress
 
 
-class SkipWith(Exception):
+class SkipWithError(Exception):
     pass
 
 
@@ -29,15 +27,13 @@ def skip_run(flag, f):
         p = ColorPrint()  # printing options
         if flag in deactivated:
             p.print_skip("{:>12}  {:>2}  {:>12}".format("Skipping the block", "|", f))
-            raise SkipWith()
+            raise SkipWithError
         else:
             p.print_run("{:>12}  {:>3}  {:>12}".format("Running the block", "|", f))
             yield
 
-    try:
+    with suppress(SkipWithError):
         yield check_active
-    except SkipWith:
-        pass
 
 
 class ColorPrint:

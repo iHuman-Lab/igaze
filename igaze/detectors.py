@@ -138,7 +138,7 @@ def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):  # noqa:
             # only store the fixation if the duration is ok
             if time[i - 1] - start_fixation[-1][0] >= mindur:
                 end_fixation.append(
-                    [start_fixation[-1][0], time[i - 1], time[i - 1] - start_fixation[-1][0], x[si], y[si]]
+                    [start_fixation[-1][0], time[i - 1], time[i - 1] - start_fixation[-1][0], x[si], y[si]],
                 )
             # delete the last fixation start if it was too short
             else:
