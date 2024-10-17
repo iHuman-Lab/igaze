@@ -36,9 +36,6 @@ import numpy
 from matplotlib import pyplot
 from PIL import Image
 
-# # # # #
-# LOOK
-
 # COLOURS
 # all colours are from the Tango colourmap, see:
 # http://tango.freedesktop.org/Tango_Icon_Theme_Guidelines#Color_Palette
@@ -53,12 +50,15 @@ COLS = {
     "aluminium": ["#eeeeec", "#d3d7cf", "#babdb6", "#888a85", "#555753", "#2e3436"],
 }
 
-# # # # #
-# FUNCTIONS
 
-
-def draw_fixations(
-    fixations, dispsize, imagefile=None, durationsize=True, durationcolour=True, alpha=0.5, savefilename=None
+def draw_fixations(  # noqa: PLR0913
+    fixations,
+    dispsize,
+    imagefile=None,
+    durationsize=True,
+    durationcolour=True,
+    alpha=0.5,
+    savefilename=None,
 ):
     """Draws circles on the fixation locations, optionally on top of an image,
     with optional weigthing of the duration for circle size and colour
@@ -104,20 +104,12 @@ def draw_fixations(
 
     # CIRCLES
     # duration weigths
-    if durationsize:
-        siz = 1 * (fix["dur"] / 30.0)
-    else:
-        siz = 1 * numpy.median(fix["dur"] / 30.0)
-    if durationcolour:
-        col = fix["dur"]
-    else:
-        col = COLS["chameleon"][2]
+    siz = 1 * (fix["dur"] / 30.0) if durationsize else 1 * numpy.median(fix["dur"] / 30.0)
+    col = fix["dur"] if durationcolour else COLS["chameleon"][2]
+
     # draw circles
     ax.scatter(fix["x"], fix["y"], s=siz, c=col, marker="o", cmap="jet", alpha=alpha, edgecolors="none")
 
-    # FINISH PLOT
-    # invert the y axis, as (0,0) is top left on a display
-    # ax.invert_yaxis()
     # save the figure if a file name was provided
     if savefilename is not None:
         fig.savefig(savefilename)
@@ -125,7 +117,7 @@ def draw_fixations(
     return fig
 
 
-def draw_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True, alpha=0.5, savefilename=None):
+def draw_heatmap(fixations, dispsize, ax, imagefile=None, alpha=0.5, savefilename=None):  # noqa: PLR0913
     """Draws a heatmap of the provided fixations, optionally drawn over an
     image, and optionally allocating more weight to fixations with a higher
     duration.
@@ -164,20 +156,19 @@ def draw_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True, a
     fix = parse_fixations(fixations)
 
     # IMAGE
-    # fig, ax = draw_display(dispsize, imagefile=imagefile)
+    fig, ax = draw_display(dispsize, imagefile=imagefile)
 
     # HEATMAP
     # Gaussian
     gwh = 200
     gsdwh = gwh / 6
     gaus = gaussian(gwh, gsdwh)
-    print(gaus)
     # matrix of zeroes
     strt = int(gwh / 2)
     heatmapsize = int(dispsize[1] + 2 * strt), int(dispsize[0] + 2 * strt)
     heatmap = numpy.zeros(heatmapsize, dtype=float)
     # create heatmap
-    for i in range(0, len(fix["dur"])):
+    for i in range(len(fix["dur"])):
         # get x and y coordinates
         # x and y - indexes of heatmap array. must be integers
         x = int(strt) + int(fix["x"][i]) - int(gwh / 2)
@@ -187,18 +178,18 @@ def draw_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True, a
         if (not 0 < x < dispsize[0]) or (not 0 < y < dispsize[1]):
             hadj = [0, gwh]
             vadj = [0, gwh]
-            if 0 > x:
+            if x < 0:
                 hadj[0] = abs(x)
                 x = 0
             elif dispsize[0] < x:
                 hadj[1] = gwh - int(x - dispsize[0])
-            if 0 > y:
+            if y < 0:
                 vadj[0] = abs(y)
                 y = 0
             elif dispsize[1] < y:
                 vadj[1] = gwh - int(y - dispsize[1])
             # add adjusted Gaussian to the current heatmap
-            try:
+            try:  # noqa: SIM105
                 heatmap[y : y + vadj[1], x : x + hadj[1]] += gaus[vadj[0] : vadj[1], hadj[0] : hadj[1]] * fix["dur"][i]
             except ValueError:
                 # fixation was probably outside of display
@@ -222,13 +213,11 @@ def draw_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True, a
 
     # FINISH PLOT
     # save the figure if a file name was provided
-    # if savefilename is not None:
-    #     fig.savefig(savefilename)
-
-    return None
+    if savefilename is not None:
+        fig.savefig(savefilename)
 
 
-def draw_eye_heatmap(positions, dispsize, ax, imagefile=None, alpha=0.5, savefilename=None):
+def draw_eye_heatmap(positions, dispsize, ax, alpha=0.5):
     """Draws a heatmap of the provided fixations, optionally drawn over an
     image, and optionally allocating more weight to fixations with a higher
     duration.
@@ -283,18 +272,18 @@ def draw_eye_heatmap(positions, dispsize, ax, imagefile=None, alpha=0.5, savefil
         if (not 0 < x < dispsize[0]) or (not 0 < y < dispsize[1]):
             hadj = [0, gwh]
             vadj = [0, gwh]
-            if 0 > x:
+            if x < 0:
                 hadj[0] = abs(x)
                 x = 0
             elif dispsize[0] < x:
                 hadj[1] = gwh - int(x - dispsize[0])
-            if 0 > y:
+            if y < 0:
                 vadj[0] = abs(y)
                 y = 0
             elif dispsize[1] < y:
                 vadj[1] = gwh - int(y - dispsize[1])
             # add adjusted Gaussian to the current heatmap
-            try:
+            try:  # noqa: SIM105
                 heatmap[y : y + vadj[1], x : x + hadj[1]] += gaus[vadj[0] : vadj[1], hadj[0] : hadj[1]]
             except ValueError:
                 # fixation was probably outside of display
@@ -310,8 +299,6 @@ def draw_eye_heatmap(positions, dispsize, ax, imagefile=None, alpha=0.5, savefil
 
     # draw heatmap on top of image
     ax.imshow(heatmap, cmap="jet", alpha=alpha)
-    # ax.invert_yaxis()
-    return None
 
 
 def animate_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True, alpha=0.5, savefilename=None):
@@ -375,18 +362,18 @@ def animate_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True
         if (not 0 < x < dispsize[0]) or (not 0 < y < dispsize[1]):
             hadj = [0, gwh]
             vadj = [0, gwh]
-            if 0 > x:
+            if x < 0:
                 hadj[0] = abs(x)
                 x = 0
             elif dispsize[0] < x:
                 hadj[1] = gwh - int(x - dispsize[0])
-            if 0 > y:
+            if y < 0:
                 vadj[0] = abs(y)
                 y = 0
             elif dispsize[1] < y:
                 vadj[1] = gwh - int(y - dispsize[1])
             # add adjusted Gaussian to the current heatmap
-            try:
+            try:  # noqa: SIM105
                 heatmap[y : y + vadj[1], x : x + hadj[1]] += gaus[vadj[0] : vadj[1], hadj[0] : hadj[1]] * fix["dur"][i]
             except ValueError:
                 # fixation was probably outside of display
@@ -407,7 +394,6 @@ def animate_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True
     ax.invert_yaxis()
     pyplot.pause(0.001)
     ax.cla()
-    return None
 
 
 def draw_raw(x, y, dispsize, imagefile=None, savefilename=None):
@@ -453,7 +439,7 @@ def draw_raw(x, y, dispsize, imagefile=None, savefilename=None):
     return fig
 
 
-def draw_scanpath(fixations, saccades, dispsize, imagefile=None, alpha=0.5, savefilename=None):
+def draw_scanpath(fixations, saccades, dispsize, imagefile=None, alpha=0.5, savefilename=None):  # noqa: PLR0913
     """Draws a scanpath: a series of arrows between numbered fixations,
     optionally drawn over an image
 
@@ -519,7 +505,7 @@ def draw_scanpath(fixations, saccades, dispsize, imagefile=None, alpha=0.5, save
     # SACCADES
     if saccades:
         # loop through all saccades
-        for st, et, dur, sx, sy, ex, ey in saccades:
+        for _, _, _, sx, sy, ex, ey in saccades:
             # draw an arrow between every saccade start and ending
             ax.arrow(
                 sx,
@@ -544,10 +530,6 @@ def draw_scanpath(fixations, saccades, dispsize, imagefile=None, alpha=0.5, save
         fig.savefig(savefilename)
 
     return fig
-
-
-# # # # #
-# HELPER FUNCTIONS
 
 
 def draw_display(dispsize, imagefile=None):
