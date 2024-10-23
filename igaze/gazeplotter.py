@@ -30,40 +30,36 @@ __author__ = "Edwin Dalmaijer"
 
 # native
 import os
+
 # external
 import numpy
 from matplotlib import pyplot
 from PIL import Image
 
-# # # # #
-# LOOK
-
 # COLOURS
 # all colours are from the Tango colourmap, see:
 # http://tango.freedesktop.org/Tango_Icon_Theme_Guidelines#Color_Palette
 COLS = {
-    "butter": ['#fce94f', '#edd400', '#c4a000'],
-    "orange": ['#fcaf3e', '#f57900', '#ce5c00'],
-    "chocolate": ['#e9b96e', '#c17d11', '#8f5902'],
-    "chameleon": ['#8ae234', '#73d216', '#4e9a06'],
-    "skyblue": ['#729fcf', '#3465a4', '#204a87'],
-    "plum": ['#ad7fa8', '#75507b', '#5c3566'],
-    "scarletred": ['#ef2929', '#cc0000', '#a40000'],
-    "aluminium":
-    ['#eeeeec', '#d3d7cf', '#babdb6', '#888a85', '#555753', '#2e3436'],
+    "butter": ["#fce94f", "#edd400", "#c4a000"],
+    "orange": ["#fcaf3e", "#f57900", "#ce5c00"],
+    "chocolate": ["#e9b96e", "#c17d11", "#8f5902"],
+    "chameleon": ["#8ae234", "#73d216", "#4e9a06"],
+    "skyblue": ["#729fcf", "#3465a4", "#204a87"],
+    "plum": ["#ad7fa8", "#75507b", "#5c3566"],
+    "scarletred": ["#ef2929", "#cc0000", "#a40000"],
+    "aluminium": ["#eeeeec", "#d3d7cf", "#babdb6", "#888a85", "#555753", "#2e3436"],
 }
 
-# # # # #
-# FUNCTIONS
 
-
-def draw_fixations(fixations,
-                   dispsize,
-                   imagefile=None,
-                   durationsize=True,
-                   durationcolour=True,
-                   alpha=0.5,
-                   savefilename=None):
+def draw_fixations(  # noqa: PLR0913
+    fixations,
+    dispsize,
+    imagefile=None,
+    durationsize=True,
+    durationcolour=True,
+    alpha=0.5,
+    savefilename=None,
+):
     """Draws circles on the fixation locations, optionally on top of an image,
     with optional weigthing of the duration for circle size and colour
 
@@ -108,27 +104,12 @@ def draw_fixations(fixations,
 
     # CIRCLES
     # duration weigths
-    if durationsize:
-        siz = 1 * (fix['dur'] / 30.0)
-    else:
-        siz = 1 * numpy.median(fix['dur'] / 30.0)
-    if durationcolour:
-        col = fix['dur']
-    else:
-        col = COLS['chameleon'][2]
-    # draw circles
-    ax.scatter(fix['x'],
-               fix['y'],
-               s=siz,
-               c=col,
-               marker='o',
-               cmap='jet',
-               alpha=alpha,
-               edgecolors='none')
+    siz = 1 * (fix["dur"] / 30.0) if durationsize else 1 * numpy.median(fix["dur"] / 30.0)
+    col = fix["dur"] if durationcolour else COLS["chameleon"][2]
 
-    # FINISH PLOT
-    # invert the y axis, as (0,0) is top left on a display
-    # ax.invert_yaxis()
+    # draw circles
+    ax.scatter(fix["x"], fix["y"], s=siz, c=col, marker="o", cmap="jet", alpha=alpha, edgecolors="none")
+
     # save the figure if a file name was provided
     if savefilename is not None:
         fig.savefig(savefilename)
@@ -136,13 +117,7 @@ def draw_fixations(fixations,
     return fig
 
 
-def draw_heatmap(fixations,
-                 dispsize,
-                 ax,
-                 imagefile=None,
-                 durationweight=True,
-                 alpha=0.5,
-                 savefilename=None):
+def draw_heatmap(fixations, dispsize, ax, imagefile=None, alpha=0.5, savefilename=None):  # noqa: PLR0913
     """Draws a heatmap of the provided fixations, optionally drawn over an
     image, and optionally allocating more weight to fixations with a higher
     duration.
@@ -181,58 +156,55 @@ def draw_heatmap(fixations,
     fix = parse_fixations(fixations)
 
     # IMAGE
-    # fig, ax = draw_display(dispsize, imagefile=imagefile)
+    fig, ax = draw_display(dispsize, imagefile=imagefile)
 
     # HEATMAP
     # Gaussian
     gwh = 200
     gsdwh = gwh / 6
     gaus = gaussian(gwh, gsdwh)
-    print(gaus)
     # matrix of zeroes
     strt = int(gwh / 2)
     heatmapsize = int(dispsize[1] + 2 * strt), int(dispsize[0] + 2 * strt)
     heatmap = numpy.zeros(heatmapsize, dtype=float)
     # create heatmap
-    for i in range(0, len(fix['dur'])):
+    for i in range(len(fix["dur"])):
         # get x and y coordinates
         # x and y - indexes of heatmap array. must be integers
-        x = int(strt) + int(fix['x'][i]) - int(gwh / 2)
-        y = int(strt) + int(fix['y'][i]) - int(gwh / 2)
+        x = int(strt) + int(fix["x"][i]) - int(gwh / 2)
+        y = int(strt) + int(fix["y"][i]) - int(gwh / 2)
         # correct Gaussian size if either coordinate falls outside of
         # display boundaries
         if (not 0 < x < dispsize[0]) or (not 0 < y < dispsize[1]):
             hadj = [0, gwh]
             vadj = [0, gwh]
-            if 0 > x:
+            if x < 0:
                 hadj[0] = abs(x)
                 x = 0
             elif dispsize[0] < x:
                 hadj[1] = gwh - int(x - dispsize[0])
-            if 0 > y:
+            if y < 0:
                 vadj[0] = abs(y)
                 y = 0
             elif dispsize[1] < y:
                 vadj[1] = gwh - int(y - dispsize[1])
             # add adjusted Gaussian to the current heatmap
-            try:
-                heatmap[y:y + vadj[1],
-                        x:x + hadj[1]] += gaus[vadj[0]:vadj[1],
-                                               hadj[0]:hadj[1]] * fix['dur'][i]
+            try:  # noqa: SIM105
+                heatmap[y : y + vadj[1], x : x + hadj[1]] += gaus[vadj[0] : vadj[1], hadj[0] : hadj[1]] * fix["dur"][i]
             except ValueError:
                 # fixation was probably outside of display
                 pass
         else:
             # add Gaussian to the current heatmap
-            heatmap[y:y + gwh, x:x + gwh] += gaus * fix['dur'][i]
+            heatmap[y : y + gwh, x : x + gwh] += gaus * fix["dur"][i]
     # resize heatmap
-    heatmap = heatmap[strt:dispsize[1] + strt, strt:dispsize[0] + strt]
+    heatmap = heatmap[strt : dispsize[1] + strt, strt : dispsize[0] + strt]
     # remove zeros
     lowbound = numpy.mean(heatmap[heatmap > 0])
     heatmap[heatmap < lowbound] = numpy.NaN
 
     # draw heatmap on top of image
-    ax.imshow(heatmap, cmap='jet', alpha=alpha)
+    ax.imshow(heatmap, cmap="jet", alpha=alpha)
 
     # invert the y axis, as (0,0) is top left on a display
     ax.invert_yaxis()
@@ -241,18 +213,11 @@ def draw_heatmap(fixations,
 
     # FINISH PLOT
     # save the figure if a file name was provided
-    # if savefilename is not None:
-    #     fig.savefig(savefilename)
-
-    return None
+    if savefilename is not None:
+        fig.savefig(savefilename)
 
 
-def draw_eye_heatmap(positions,
-                     dispsize,
-                     ax,
-                     imagefile=None,
-                     alpha=0.5,
-                     savefilename=None):
+def draw_eye_heatmap(positions, dispsize, ax, alpha=0.5):
     """Draws a heatmap of the provided fixations, optionally drawn over an
     image, and optionally allocating more weight to fixations with a higher
     duration.
@@ -307,45 +272,36 @@ def draw_eye_heatmap(positions,
         if (not 0 < x < dispsize[0]) or (not 0 < y < dispsize[1]):
             hadj = [0, gwh]
             vadj = [0, gwh]
-            if 0 > x:
+            if x < 0:
                 hadj[0] = abs(x)
                 x = 0
             elif dispsize[0] < x:
                 hadj[1] = gwh - int(x - dispsize[0])
-            if 0 > y:
+            if y < 0:
                 vadj[0] = abs(y)
                 y = 0
             elif dispsize[1] < y:
                 vadj[1] = gwh - int(y - dispsize[1])
             # add adjusted Gaussian to the current heatmap
-            try:
-                heatmap[y:y + vadj[1], x:x + hadj[1]] += gaus[vadj[0]:vadj[1],
-                                                              hadj[0]:hadj[1]]
+            try:  # noqa: SIM105
+                heatmap[y : y + vadj[1], x : x + hadj[1]] += gaus[vadj[0] : vadj[1], hadj[0] : hadj[1]]
             except ValueError:
                 # fixation was probably outside of display
                 pass
         else:
             # add Gaussian to the current heatmap
-            heatmap[y:y + gwh, x:x + gwh] += gaus
+            heatmap[y : y + gwh, x : x + gwh] += gaus
     # resize heatmap
-    heatmap = heatmap[strt:dispsize[1] + strt, strt:dispsize[0] + strt]
+    heatmap = heatmap[strt : dispsize[1] + strt, strt : dispsize[0] + strt]
     # remove zeros
     lowbound = numpy.mean(heatmap[heatmap > 0])
     heatmap[heatmap < lowbound] = numpy.NaN
 
     # draw heatmap on top of image
-    ax.imshow(heatmap, cmap='jet', alpha=alpha)
-    # ax.invert_yaxis()
-    return None
+    ax.imshow(heatmap, cmap="jet", alpha=alpha)
 
 
-def animate_heatmap(fixations,
-                    dispsize,
-                    ax,
-                    imagefile=None,
-                    durationweight=True,
-                    alpha=0.5,
-                    savefilename=None):
+def animate_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True, alpha=0.5, savefilename=None):
     """Draws a heatmap of the provided fixations, optionally drawn over an
     image, and optionally allocating more weight to fixations with a higher
     duration.
@@ -396,51 +352,48 @@ def animate_heatmap(fixations,
     heatmapsize = int(dispsize[1] + 2 * strt), int(dispsize[0] + 2 * strt)
     heatmap = numpy.zeros(heatmapsize, dtype=float)
     # create heatmap
-    for i in range(0, len(fix['dur'])):
+    for i in range(0, len(fix["dur"])):
         # get x and y coordinates
         # x and y - indexes of heatmap array. must be integers
-        x = int(strt) + int(fix['x'][i]) - int(gwh / 2)
-        y = int(strt) + int(fix['y'][i]) - int(gwh / 2)
+        x = int(strt) + int(fix["x"][i]) - int(gwh / 2)
+        y = int(strt) + int(fix["y"][i]) - int(gwh / 2)
         # correct Gaussian size if either coordinate falls outside of
         # display boundaries
         if (not 0 < x < dispsize[0]) or (not 0 < y < dispsize[1]):
             hadj = [0, gwh]
             vadj = [0, gwh]
-            if 0 > x:
+            if x < 0:
                 hadj[0] = abs(x)
                 x = 0
             elif dispsize[0] < x:
                 hadj[1] = gwh - int(x - dispsize[0])
-            if 0 > y:
+            if y < 0:
                 vadj[0] = abs(y)
                 y = 0
             elif dispsize[1] < y:
                 vadj[1] = gwh - int(y - dispsize[1])
             # add adjusted Gaussian to the current heatmap
-            try:
-                heatmap[y:y + vadj[1],
-                        x:x + hadj[1]] += gaus[vadj[0]:vadj[1],
-                                               hadj[0]:hadj[1]] * fix['dur'][i]
+            try:  # noqa: SIM105
+                heatmap[y : y + vadj[1], x : x + hadj[1]] += gaus[vadj[0] : vadj[1], hadj[0] : hadj[1]] * fix["dur"][i]
             except ValueError:
                 # fixation was probably outside of display
                 pass
         else:
             # add Gaussian to the current heatmap
-            heatmap[y:y + gwh, x:x + gwh] += gaus * fix['dur'][i]
+            heatmap[y : y + gwh, x : x + gwh] += gaus * fix["dur"][i]
     # resize heatmap
-    heatmap = heatmap[strt:dispsize[1] + strt, strt:dispsize[0] + strt]
+    heatmap = heatmap[strt : dispsize[1] + strt, strt : dispsize[0] + strt]
     # remove zeros
     lowbound = numpy.mean(heatmap[heatmap > 0])
     heatmap[heatmap < lowbound] = numpy.NaN
 
     # draw heatmap on top of image
-    ax.imshow(heatmap, cmap='jet', alpha=alpha)
+    ax.imshow(heatmap, cmap="jet", alpha=alpha)
 
     # invert the y axis, as (0,0) is top left on a display
     ax.invert_yaxis()
     pyplot.pause(0.001)
     ax.cla()
-    return None
 
 
 def draw_raw(x, y, dispsize, imagefile=None, savefilename=None):
@@ -475,11 +428,7 @@ def draw_raw(x, y, dispsize, imagefile=None, savefilename=None):
     fig, ax = draw_display(dispsize, imagefile=imagefile)
 
     # plot raw data points
-    ax.plot(x,
-            y,
-            'o',
-            color=COLS['aluminium'][0],
-            markeredgecolor=COLS['aluminium'][5])
+    ax.plot(x, y, "o", color=COLS["aluminium"][0], markeredgecolor=COLS["aluminium"][5])
 
     # invert the y axis, as (0,0) is top left on a display
     ax.invert_yaxis()
@@ -490,12 +439,7 @@ def draw_raw(x, y, dispsize, imagefile=None, savefilename=None):
     return fig
 
 
-def draw_scanpath(fixations,
-                  saccades,
-                  dispsize,
-                  imagefile=None,
-                  alpha=0.5,
-                  savefilename=None):
+def draw_scanpath(fixations, saccades, dispsize, imagefile=None, alpha=0.5, savefilename=None):  # noqa: PLR0913
     """Draws a scanpath: a series of arrows between numbered fixations,
     optionally drawn over an image
 
@@ -536,41 +480,48 @@ def draw_scanpath(fixations,
     # parse fixations
     fix = parse_fixations(fixations)
     # draw fixations
-    ax.scatter(fix['x'],
-               fix['y'],
-               s=(1 * fix['dur'] / 30.0),
-               c=COLS['chameleon'][2],
-               marker='o',
-               cmap='jet',
-               alpha=alpha,
-               edgecolors='none')
+    ax.scatter(
+        fix["x"],
+        fix["y"],
+        s=(1 * fix["dur"] / 30.0),
+        c=COLS["chameleon"][2],
+        marker="o",
+        cmap="jet",
+        alpha=alpha,
+        edgecolors="none",
+    )
     # draw annotations (fixation numbers)
     for i in range(len(fixations)):
-        ax.annotate(str(i + 1), (fix['x'][i], fix['y'][i]),
-                    color=COLS['aluminium'][5],
-                    alpha=1,
-                    horizontalalignment='center',
-                    verticalalignment='center',
-                    multialignment='center')
+        ax.annotate(
+            str(i + 1),
+            (fix["x"][i], fix["y"][i]),
+            color=COLS["aluminium"][5],
+            alpha=1,
+            horizontalalignment="center",
+            verticalalignment="center",
+            multialignment="center",
+        )
 
     # SACCADES
     if saccades:
         # loop through all saccades
-        for st, et, dur, sx, sy, ex, ey in saccades:
+        for _, _, _, sx, sy, ex, ey in saccades:
             # draw an arrow between every saccade start and ending
-            ax.arrow(sx,
-                     sy,
-                     ex - sx,
-                     ey - sy,
-                     alpha=alpha,
-                     fc=COLS['aluminium'][0],
-                     ec=COLS['aluminium'][5],
-                     fill=True,
-                     shape='full',
-                     width=10,
-                     head_width=20,
-                     head_starts_at_zero=False,
-                     overhang=0)
+            ax.arrow(
+                sx,
+                sy,
+                ex - sx,
+                ey - sy,
+                alpha=alpha,
+                fc=COLS["aluminium"][0],
+                ec=COLS["aluminium"][5],
+                fill=True,
+                shape="full",
+                width=10,
+                head_width=20,
+                head_starts_at_zero=False,
+                overhang=0,
+            )
 
     # invert the y axis, as (0,0) is top left on a display
     ax.invert_yaxis()
@@ -579,10 +530,6 @@ def draw_scanpath(fixations,
         fig.savefig(savefilename)
 
     return fig
-
-
-# # # # #
-# HELPER FUNCTIONS
 
 
 def draw_display(dispsize, imagefile=None):
@@ -612,15 +559,13 @@ def draw_display(dispsize, imagefile=None):
     # construct screen (black background)
     _, ext = os.path.splitext(imagefile)
     ext = ext.lower()
-    data_type = 'float32' if ext == '.png' else 'uint8'
+    data_type = "float32" if ext == ".png" else "uint8"
     screen = numpy.zeros((dispsize[1], dispsize[0], 3), dtype=data_type)
     # if an image location has been passed, draw the image
     if imagefile is not None:
         # check if the path to the image exists
         if not os.path.isfile(imagefile):
-            raise Exception(
-                "ERROR in draw_display: imagefile not found at '%s'" %
-                imagefile)
+            raise Exception("ERROR in draw_display: imagefile not found at '%s'" % imagefile)
         # load image
         # img = image.imread(imagefile)
         img = Image.open(imagefile)
@@ -629,7 +574,7 @@ def draw_display(dispsize, imagefile=None):
         # flip image over the horizontal axis
         # (do not do so on Windows, as the image appears to be loaded with
         # the correct side up there; what's up with that? :/)
-        if not os.name == 'nt':
+        if not os.name == "nt":
             # img = numpy.flipud(img) # NOTE: Need not do this in mac
             pass
         # width and height of the image
@@ -639,7 +584,7 @@ def draw_display(dispsize, imagefile=None):
         y = int(dispsize[1] / 2 - h / 2)
 
         # draw the image on the screen
-        screen[y:y + h, x:x + w, :] += img[:, :, 0:3]
+        screen[y : y + h, x : x + w, :] += img[:, :, 0:3]
     # dots per inch
     dpi = 100.0
     # determine the figure size in inches
@@ -651,7 +596,7 @@ def draw_display(dispsize, imagefile=None):
     fig.add_axes(ax)
     # plot display
     ax.axis([0, dispsize[0], 0, dispsize[1]])
-    ax.imshow(img, origin='upper')
+    ax.imshow(img, origin="upper")
 
     return fig, ax
 
@@ -682,8 +627,9 @@ def gaussian(x, sx, y=None, sy=None):
     # gaussian matrix
     for i in range(x):
         for j in range(y):
-            M[j, i] = numpy.exp(-1.0 * (((float(i) - xo)**2 / (2 * sx * sx)) +
-                                        ((float(j) - yo)**2 / (2 * sy * sy))))
+            M[j, i] = numpy.exp(
+                -1.0 * (((float(i) - xo) ** 2 / (2 * sx * sx)) + ((float(j) - yo) ** 2 / (2 * sy * sy)))
+            )
 
     return M
 
@@ -705,16 +651,12 @@ def parse_fixations(fixations):
     """
 
     # empty arrays to contain fixation coordinates
-    fix = {
-        'x': numpy.zeros(len(fixations)),
-        'y': numpy.zeros(len(fixations)),
-        'dur': numpy.zeros(len(fixations))
-    }
+    fix = {"x": numpy.zeros(len(fixations)), "y": numpy.zeros(len(fixations)), "dur": numpy.zeros(len(fixations))}
     # get all fixation coordinates
     for fixnr in range(len(fixations)):
         stime, etime, dur, ex, ey = fixations[fixnr]
-        fix['x'][fixnr] = ex
-        fix['y'][fixnr] = ey
-        fix['dur'][fixnr] = dur
+        fix["x"][fixnr] = ex
+        fix["y"][fixnr] = ey
+        fix["dur"][fixnr] = dur
 
     return fix
