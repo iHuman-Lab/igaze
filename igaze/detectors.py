@@ -12,6 +12,43 @@ from igaze.gazeplotter import parse_fixations
 MISSING_VALUE = 2
 
 
+def remove_missing(x, y, time, missing):
+    """
+    Remove missing values from x, y, and time arrays based on a specified missing value.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        An array of x coordinates.
+
+    y : np.ndarray
+        An array of y coordinates.
+
+    time : np.ndarray
+        An array of time values.
+
+    missing : scalar
+        The value representing missing data.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - x_cleaned : np.ndarray
+            The x coordinates with missing values removed.
+        - y_cleaned : np.ndarray
+            The y coordinates with missing values removed.
+        - time_cleaned : np.ndarray
+            The time values with missing entries removed.
+    """
+    mx = np.array(x == missing, dtype=int)
+    my = np.array(y == missing, dtype=int)
+    x = x[(mx + my) != MISSING_VALUE]
+    y = y[(mx + my) != MISSING_VALUE]
+    time = time[(mx + my) != MISSING_VALUE]
+    return x, y, time
+
+
 def detect_blinks(x, y, time, missing=0.0, minlen=10):
     """
     Detect blinks from eye-tracking data based on missing data points.
@@ -88,41 +125,27 @@ def detect_blinks(x, y, time, missing=0.0, minlen=10):
     return blinks
 
 
-def remove_missing(x, y, time, missing):
+def calculate_blink_rate(blinks, total_time):
     """
-    Remove missing values from x, y, and time arrays based on a specified missing value.
+    Calculate the blink rate over a given time period.
 
     Parameters
     ----------
-    x : np.ndarray
-        An array of x coordinates.
+    blinks : list of dict
+        A list of dictionaries containing blink event data,
+        where each dictionary has 'start_time', 'end_time', and 'duration'.
 
-    y : np.ndarray
-        An array of y coordinates.
-
-    time : np.ndarray
-        An array of time values.
-
-    missing : scalar
-        The value representing missing data.
+    total_time : float
+        Total observation time in seconds.
 
     Returns
     -------
-    tuple
-        A tuple containing:
-        - x_cleaned : np.ndarray
-            The x coordinates with missing values removed.
-        - y_cleaned : np.ndarray
-            The y coordinates with missing values removed.
-        - time_cleaned : np.ndarray
-            The time values with missing entries removed.
+    float
+        The blink rate (blinks per minute).
     """
-    mx = np.array(x == missing, dtype=int)
-    my = np.array(y == missing, dtype=int)
-    x = x[(mx + my) != MISSING_VALUE]
-    y = y[(mx + my) != MISSING_VALUE]
-    time = time[(mx + my) != MISSING_VALUE]
-    return x, y, time
+    blink_count = len(blinks)  # Count the number of blinks
+
+    return (blink_count / total_time) * 60 if total_time > 0 else 0
 
 
 def find_fixations(x, y, time, missing=0.0, maxdist=25, mindur=50):  # noqa: PLR0913
@@ -368,15 +391,15 @@ def scan_path(fixations):
     return np.nanmean(path_lengths) if len(path_lengths) > 0 else 0.0
 
 
-def count_fixations_per_area(fixations, areas):
+def fixation_metrics(fixations, areas):
     """
-    Count the number of fixations for each defined area.
+    Analyze fixations to count the number of fixations and calculate dwell time
+    for each defined area of interest (AOI).
 
     Parameters
     ----------
-    fixations : list
-        A list of fixations, where each fixation is represented as
-        a dictionary with 'coordinates' (x, y).
+    fixations : list of dict
+        A list of dictionaries where each fixation contains 'x_mean', 'y_mean', and 'duration'.
 
     areas : dict
         A dictionary where keys are area names and values are tuples
@@ -384,16 +407,29 @@ def count_fixations_per_area(fixations, areas):
 
     Returns
     -------
-    dict
-        A dictionary with area names as keys and the count of
-        fixations as values.
+    tuple
+        A tuple containing:
+        - A dictionary with area names as keys and the count of fixations as values.
+        - A dictionary with area names as keys and total duration of fixations as values.
+        - A dictionary with area names as keys and percentage of time spent as values.
     """
     fixation_count = {area: 0 for area in areas}
+    fixation_duration = {area: 0 for area in areas}
+    total_duration = 0
 
+    # Calculate counts and durations in a single pass
     for fixation in fixations:
-        x, y = fixation["x_mean"], fixation["y_mean"]
+        x, y, duration = fixation["x_mean"], fixation["y_mean"], fixation["duration"]
+        total_duration += duration
+
         for area, (x_min, y_min, x_max, y_max) in areas.items():
             if x_min <= x <= x_max and y_min <= y <= y_max:
                 fixation_count[area] += 1
+                fixation_duration[area] += duration
 
-    return fixation_count
+    # Calculate percentage time spent in each area
+    percentage_time = {
+        area: (time / total_duration * 100) if total_duration > 0 else 0 for area, time in fixation_duration.items()
+    }
+
+    return fixation_count, fixation_duration, percentage_time
