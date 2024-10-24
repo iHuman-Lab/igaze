@@ -4,275 +4,396 @@
 Copyright (C) 2014  Edwin S. Dalmaijer.
 """
 
-import numpy
+import numpy as np
+import pandas as pd
 
 from igaze.gazeplotter import parse_fixations
 
+MISSING_VALUE = 2
 
-def blink_detection(x, y, time, missing=0.0, minlen=10):
-    """Detects blinks, defined as a period of missing data that lasts for at
-    least a minimal amount of samples arguments.
+
+def detect_blinks(x, y, time, missing=0.0, minlen=10):
+    """
+    Detect blinks from eye-tracking data based on missing data points.
+
+    A blink is defined as a continuous period during which both x and y coordinates
+    are equal to the `missing` value for at least `minlen` milliseconds.
 
     Parameters
     ----------
-    x : np.array
-        numpy array of x positions
-    y : np.array
-        numpy array of y positions
-    time : np.array
-        numpy array of timestamps
+    x : list or np.ndarray
+        The x-coordinates of eye-tracking data points.
+    y : list or np.ndarray
+        The y-coordinates of eye-tracking data points.
+    time : list or np.ndarray
+        The timestamps corresponding to each (x, y) point.
     missing : float, optional
-        value to be used for missing data, by default 0.0
+        The value to be treated as missing data (default is 0.0).
     minlen : int, optional
-        integer indicating the minimal amount of consecutive
-                missing samples, by default 10
+        The minimum duration (in milliseconds) a period of missing data must last
+        to be considered a blink (default is 10).
 
     Returns
     -------
-    start_blink: list[list]
-        list of lists, each containing [starttime]
-    end_blink: list[list]
-        list of lists, each containing [starttime, endtime, duration]
+    list of dict
+        A list of detected blinks, where each blink is represented as a dictionary
+        containing:
+        - 'start_time' : float
+            The starting timestamp of the blink.
+        - 'end_time' : float
+            The ending timestamp of the blink.
+        - 'duration' : float
+            The duration of the blink in milliseconds.
+
+    Examples
+    --------
+    >>> x = [100, 100, 0, 0, 100, 100]
+    >>> y = [200, 200, 0, 0, 200, 200]
+    >>> time = [0, 5, 10, 15, 20, 25]
+    >>> blinks = detect_blinks(x, y, time)
+    >>> print(blinks)
+    [{'start_time': 10, 'end_time': 15, 'duration': 5}]
     """
-    # empty list to contain data
-    start_blink = []
-    end_blink = []
+    # Create a DataFrame from the input data
+    data = pd.DataFrame({"x": x, "y": y, "time": time})
 
-    # check where the missing samples are
-    mx = numpy.array(x == missing, dtype=int)
-    my = numpy.array(y == missing, dtype=int)
-    miss = numpy.array((mx + my) == 2, dtype=int)
+    # Identify missing data points
+    missing_mask = (data["x"] == missing) & (data["y"] == missing)
+    data["is_blink"] = missing_mask
 
-    # check where the starts and ends are (+1 to counteract shift to left)
-    diff = numpy.diff(miss)
-    starts = numpy.where(diff == 1)[0] + 1
-    ends = numpy.where(diff == -1)[0] + 1
+    # Initialize variables to store blinks
+    blinks = []
+    current_blink = None
 
-    # compile blink starts and ends
-    for i in range(len(starts)):
-        # get starting index
-        s = starts[i]
-        # get ending index
-        if i < len(ends):
-            e = ends[i]
-        elif len(ends) > 0:
-            e = ends[-1]
-        else:
-            e = -1
-        # append only if the duration in samples is equal to or greater than
-        # the minimal duration
-        if e - s >= minlen:
-            # add starting time
-            start_blink.append([time[s]])
-            # add ending time
-            end_blink.append([time[s], time[e], time[e] - time[s]])
+    for i in range(len(data)):
+        if data["is_blink"].iloc[i]:
+            if current_blink is None:
+                current_blink = {"start_time": data["time"].iloc[i]}
+        elif current_blink is not None:
+            current_blink["end_time"] = data["time"].iloc[i - 1]
+            current_blink["duration"] = current_blink["end_time"] - current_blink["start_time"]
 
-    return start_blink, end_blink
+            if current_blink["duration"] >= minlen:
+                blinks.append(current_blink)
+            current_blink = None
+
+    # Check if there's an ongoing blink at the end
+    if current_blink is not None:
+        current_blink["end_time"] = data["time"].iloc[-1]
+        current_blink["duration"] = current_blink["end_time"] - current_blink["start_time"]
+
+        if current_blink["duration"] >= minlen:
+            blinks.append(current_blink)
+
+    return blinks
 
 
 def remove_missing(x, y, time, missing):
-    mx = numpy.array(x == missing, dtype=int)
-    my = numpy.array(y == missing, dtype=int)
-    x = x[(mx + my) != 2]
-    y = y[(mx + my) != 2]
-    time = time[(mx + my) != 2]
+    """
+    Remove missing values from x, y, and time arrays based on a specified missing value.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        An array of x coordinates.
+
+    y : np.ndarray
+        An array of y coordinates.
+
+    time : np.ndarray
+        An array of time values.
+
+    missing : scalar
+        The value representing missing data.
+
+    Returns
+    -------
+    tuple
+        A tuple containing:
+        - x_cleaned : np.ndarray
+            The x coordinates with missing values removed.
+        - y_cleaned : np.ndarray
+            The y coordinates with missing values removed.
+        - time_cleaned : np.ndarray
+            The time values with missing entries removed.
+    """
+    mx = np.array(x == missing, dtype=int)
+    my = np.array(y == missing, dtype=int)
+    x = x[(mx + my) != MISSING_VALUE]
+    y = y[(mx + my) != MISSING_VALUE]
+    time = time[(mx + my) != MISSING_VALUE]
     return x, y, time
 
 
-def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):  # noqa: PLR0913
-    """Detects fixations, defined as consecutive samples with an inter-sample
-    distance of less than a set amount of pixels (disregarding missing data).
+def find_fixations(x, y, time, missing=0.0, maxdist=25, mindur=50):  # noqa: PLR0913
+    """
+    Identify eye fixations from eye-tracking data based on spatial and temporal criteria.
+
+    A fixation is defined as a sequence of eye-tracking points that are close together
+    (within `maxdist`) and have a duration longer than `mindur`.
 
     Parameters
     ----------
-    x : np.array
-        numpy array of x positions
-    y : np.array
-        numpy array of y positions
-    time : np.array
-        numpy array of timestamps
+    x : list or np.ndarray
+        The x-coordinates of eye-tracking data points.
+    y : list or np.ndarray
+        The y-coordinates of eye-tracking data points.
+    time : list or np.ndarray
+        The timestamps corresponding to each (x, y) point.
     missing : float, optional
-        value to be used for missing data, by default 0.0
-    maxdist : int, optional
-        maximal inter sample distance in pixels, by default 25
+        The value to be treated as missing data (default is 0.0).
+    maxdist : float, optional
+        The maximum distance (in pixels) between consecutive points to be considered part
+        of the same fixation (default is 25).
     mindur : int, optional
-        minimal duration of a fixation in milliseconds; detected
-        fixation cadidates will be disregarded if they are below
-        this duration, by default 50
+        The minimum duration (in milliseconds) a sequence of points must last to be considered
+        a fixation (default is 50).
 
     Returns
     -------
-    start_fixation: list[lists]
-        list of lists, each containing [starttime]
-    end_fixation: list[list]
-        list of lists, each containing [starttime, endtime, duration, endx, endy]
+    list of dict
+        A list of fixations, where each fixation is represented as a dictionary containing:
+        - 'start_time' : float
+            The starting timestamp of the fixation.
+        - 'end_time' : float
+            The ending timestamp of the fixation.
+        - 'duration' : float
+            The duration of the fixation in milliseconds.
+        - 'x_mean' : float
+            The mean x-coordinate of the fixation.
+        - 'y_mean' : float
+            The mean y-coordinate of the fixation.
+        - 'count' : int
+            The number of points in the fixation.
+
+    Examples
+    --------
+    >>> x = [100, 102, 105, 300, 310, 100]
+    >>> y = [200, 202, 203, 205, 210, 200]
+    >>> time = [0, 10, 20, 50, 60, 100]
+    >>> fixations = find_fixations(x, y, time)
+    >>> print(fixations)
+    [{'start_time': 0, 'end_time': 20, 'duration': 20, 'x_mean': 102.33, 'y_mean': 201.67, 'count': 3},
+     {'start_time': 50, 'end_time': 100, 'duration': 50, 'x_mean': 305.0, 'y_mean': 207.5, 'count': 2}]
     """
+    # Create a DataFrame from the input data
+    data = pd.DataFrame({"x": x, "y": y, "time": time})
 
-    x, y, time = remove_missing(x, y, time, missing)
+    # Filter out missing data
+    data = data[(data["x"] != missing) & (data["y"] != missing)]
 
-    # empty list to contain data
-    start_fixation = []
-    end_fixation = []
+    # Calculate the distance between consecutive points
+    distances = np.sqrt(np.diff(data["x"]) ** 2 + np.diff(data["y"]) ** 2)
 
-    # loop through all coordinates
-    si = 0
-    fixstart = False
-    for i in range(1, len(x)):
-        # calculate Euclidean distance from the current fixation coordinate
-        # to the next coordinate
+    # Initialize lists to store fixations
+    fixations = []
+    current_fixation = []
 
-        squared_distance = (x[si] - x[i]) ** 2 + (y[si] - y[i]) ** 2
-        dist = 0.0
-        if squared_distance > 0:
-            dist = squared_distance**0.5
+    for i in range(len(data)):
+        if i == 0 or (len(current_fixation) > 0 and distances[i - 1] <= maxdist):
+            current_fixation.append(data.iloc[i])
+        elif len(current_fixation) > 0:
+            # Check if the current fixation has sufficient duration
+            start_time = current_fixation[0]["time"]
+            end_time = current_fixation[-1]["time"]
+            duration = end_time - start_time
 
-        # check if the next coordinate is below maximal distance
-        if dist <= maxdist and not fixstart:
-            # start a new fixation
-            si = 0 + i
-            fixstart = True
-            start_fixation.append([time[i]])
-        elif dist > maxdist and fixstart:
-            # end the current fixation
-            fixstart = False
-            # only store the fixation if the duration is ok
-            if time[i - 1] - start_fixation[-1][0] >= mindur:
-                end_fixation.append(
-                    [start_fixation[-1][0], time[i - 1], time[i - 1] - start_fixation[-1][0], x[si], y[si]],
-                )
-            # delete the last fixation start if it was too short
-            else:
-                start_fixation.pop(-1)
-            si = 0 + i
-        elif not fixstart:
-            si += 1
-    # Add last fixation end (we can lose it if dist > maxdist
-    # is false for the last point)
-    if len(start_fixation) > len(end_fixation):
-        end_fixation.append(
-            [start_fixation[-1][0], time[len(x) - 1], time[len(x) - 1] - start_fixation[-1][0], x[si], y[si]]
+            if duration >= mindur:
+                fixations.append(current_fixation)
+
+            current_fixation = [data.iloc[i]]
+        else:
+            current_fixation = [data.iloc[i]]
+
+    # Check if there's an ongoing fixation at the end
+    if len(current_fixation) > 0:
+        start_time = current_fixation[0]["time"]
+        end_time = current_fixation[-1]["time"]
+        duration = end_time - start_time
+
+        if duration >= mindur:
+            fixations.append(current_fixation)
+
+    # Convert fixations to a more readable format
+    fixation_results = []
+    for fixation in fixations:
+        fixation_data = pd.DataFrame(fixation)
+        fixation_results.append(
+            {
+                "start_time": fixation_data["time"].iloc[0],
+                "end_time": fixation_data["time"].iloc[-1],
+                "duration": fixation_data["time"].iloc[-1] - fixation_data["time"].iloc[0],
+                "x_mean": fixation_data["x"].mean(),
+                "y_mean": fixation_data["y"].mean(),
+                "count": len(fixation_data),
+            },
         )
-    return start_fixation, end_fixation
+
+    return fixation_results
 
 
-def saccade_detection(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):  # noqa: PLR0913
-    """Detects saccades, defined as consecutive samples with an inter-sample
-    velocity of over a velocity threshold or an acceleration threshold.
+def calculate_saccades(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):  # noqa: PLR0913
+    """
+    Detect saccades from eye-tracking data based on velocity and acceleration.
+
+    A saccade is defined as a rapid eye movement characterized by high velocity
+    and acceleration, with duration and movement parameters defined by the user.
 
     Parameters
     ----------
-    x : np.array
-        numpy array of x positions
-    y : np.array
-        numpy array of y positions
-    time : np.array
-        numpy array of timestamps
+    x : list or np.ndarray
+        The x-coordinates of eye-tracking data points.
+    y : list or np.ndarray
+        The y-coordinates of eye-tracking data points.
+    time : list or np.ndarray
+        The timestamps corresponding to each (x, y) point.
     missing : float, optional
-        value to be used for missing data, by default 0.0
+        The value to be treated as missing data (default is 0.0).
     minlen : int, optional
-        minimal length of saccades in milliseconds; all detected
-        saccades with len(sac) < minlen will be ignored, by default 5
-    maxvel : int, optional
-        velocity threshold in pixels/second, by default 40
-    maxacc : int, optional
-        acceleration threshold in pixels, by default 340
+        The minimum duration (in milliseconds) a saccade must last to be detected
+        (default is 5).
+    maxvel : float, optional
+        The maximum velocity (in pixels per millisecond) for a movement to be
+        considered a saccade (default is 40).
+    maxacc : float, optional
+        The maximum acceleration (in pixels per millisecond squared) for a movement
+        to be considered a saccade (default is 340).
 
     Returns
     -------
-    start_saccade : list[list]
-        list of lists, each containing [starttime]
-    end_saccade	: list[list]
-        list of lists, each containing [starttime, endtime, duration, startx, starty, endx, endy]
+    list of dict
+        A list of detected saccades, where each saccade is represented as a dictionary
+        containing:
+        - 'start_time' : float
+            The starting timestamp of the saccade.
+        - 'end_time' : float
+            The ending timestamp of the saccade.
+        - 'duration' : float
+            The duration of the saccade in milliseconds.
+        - 'x_start' : float
+            The starting x-coordinate of the saccade.
+        - 'y_start' : float
+            The starting y-coordinate of the saccade.
+        - 'x_end' : float
+            The ending x-coordinate of the saccade.
+        - 'y_end' : float
+            The ending y-coordinate of the saccade.
+
+    Examples
+    --------
+    >>> x = [100, 105, 110, 300, 305, 100]
+    >>> y = [200, 202, 203, 210, 215, 200]
+    >>> time = [0, 5, 10, 50, 55, 100]
+    >>> saccades = calculate_saccades(x, y, time)
+    >>> print(saccades)
+    [{'start_time': 0, 'end_time': 10, 'duration': 10, 'x_start': 100, 'y_start': 200, 'x_end': 110, 'y_end': 203}]
     """
+    # Create a DataFrame from the input data
+    data = pd.DataFrame({"x": x, "y": y, "time": time})
 
-    x, y, time = remove_missing(x, y, time, missing)
+    # Filter out missing data
+    data = data[(data["x"] != missing) & (data["y"] != missing)]
 
-    # CONTAINERS
-    start_saccade = []
-    end_saccade = []
+    if len(data) < 2:  # noqa: PLR2004
+        return []  # Not enough data to calculate saccades
 
-    # INTER-SAMPLE MEASURES
-    # the distance between samples is the square root of the sum
-    # of the squared horizontal and vertical interdistances
-    intdist = (numpy.diff(x) ** 2 + numpy.diff(y) ** 2) ** 0.5
-    # get inter-sample times
-    inttime = numpy.diff(time)
-    # recalculate inter-sample times to seconds
-    inttime = inttime / 1000.0
+    # Calculate displacements and time differences
+    dx = np.diff(data["x"])
+    dy = np.diff(data["y"])
+    dt = np.diff(data["time"])
 
-    # VELOCITY AND ACCELERATION
-    # the velocity between samples is the inter-sample distance
-    # divided by the inter-sample time
-    vel = intdist / inttime
-    # the acceleration is the sample-to-sample difference in
-    # eye movement velocity
-    acc = numpy.diff(vel)
+    # Calculate velocity and acceleration
+    velocity = np.sqrt(dx**2 + dy**2) / dt  # pixels per millisecond
+    acceleration = np.diff(velocity) / dt[1:]  # pixels per millisecond squared
 
-    # SACCADE START AND END
-    t0i = 0
-    stop = False
-    while not stop:
-        # saccade start (t1) is when the velocity or acceleration
-        # surpass threshold, saccade end (t2) is when both return
-        # under threshold
+    # Initialize lists to store saccades
+    saccades = []
+    current_saccade = None
 
-        # detect saccade starts
-        sacstarts = numpy.where((vel[1 + t0i :] > maxvel).astype(int) + (acc[t0i:] > maxacc).astype(int) >= 1)[0]
-        if len(sacstarts) > 0:
-            # timestamp for starting position
-            t1i = t0i + sacstarts[0] + 1
-            if t1i >= len(time) - 1:
-                t1i = len(time) - 2
-            t1 = time[t1i]
+    for i in range(len(velocity)):
+        if velocity[i] > maxvel and (i == 0 or acceleration[i - 1] < maxacc):
+            if current_saccade is None:
+                current_saccade = {
+                    "start_time": data["time"].iloc[i],
+                    "x_start": data["x"].iloc[i],
+                    "y_start": data["y"].iloc[i],
+                }
+        elif current_saccade is not None:
+            current_saccade["end_time"] = data["time"].iloc[i - 1]
+            current_saccade["duration"] = current_saccade["end_time"] - current_saccade["start_time"]
+            current_saccade["x_end"] = data["x"].iloc[i - 1]
+            current_saccade["y_end"] = data["y"].iloc[i - 1]
 
-            # add to saccade starts
-            start_saccade.append([t1])
+            if current_saccade["duration"] >= minlen:
+                saccades.append(current_saccade)
+            current_saccade = None
 
-            # detect saccade endings
-            sacends = numpy.where((vel[1 + t1i :] < maxvel).astype(int) + (acc[t1i:] < maxacc).astype(int) == 2)[0]
-            if len(sacends) > 0:
-                # timestamp for ending position
-                t2i = sacends[0] + 1 + t1i + 2
-                if t2i >= len(time):
-                    t2i = len(time) - 1
-                t2 = time[t2i]
-                dur = t2 - t1
+    # Check for an ongoing saccade at the end of the data
+    if current_saccade is not None:
+        current_saccade["end_time"] = data["time"].iloc[-1]
+        current_saccade["duration"] = current_saccade["end_time"] - current_saccade["start_time"]
+        current_saccade["x_end"] = data["x"].iloc[-1]
+        current_saccade["y_end"] = data["y"].iloc[-1]
 
-                # ignore saccades that did not last long enough
-                if dur >= minlen:
-                    # add to saccade ends
-                    end_saccade.append([t1, t2, dur, x[t1i], y[t1i], x[t2i], y[t2i]])
-                else:
-                    # remove last saccade start on too low duration
-                    start_saccade.pop(-1)
+        if current_saccade["duration"] >= minlen:
+            saccades.append(current_saccade)
 
-                # update t0i
-                t0i = 0 + t2i
-            else:
-                stop = True
-        else:
-            stop = True
-
-    return start_saccade, end_saccade
+    return saccades
 
 
 def scan_path(fixations):
-    """Length of the scan path
+    """Calculate the average length of the scan path based on fixations.
 
     Parameters
     ----------
     fixations : list
-        A list of fixations
+        A list of fixation events.
 
     Returns
     -------
     float
-        scan path
+        The average scan path length.
     """
+    # Parse fixation data
     fix = parse_fixations(fixations)
-    path = numpy.array([fix["x"], fix["y"]]).transpose()
-    path_length = numpy.linalg.norm(numpy.diff(path, axis=0), axis=1)
-    return numpy.nanmean(path_length)
 
-def number_of_fixations(fixations):
-    return len(fixations)
+    # Create an array of x and y coordinates
+    coordinates = np.column_stack((fix["x"], fix["y"]))
+
+    # Calculate the differences between consecutive fixations
+    differences = np.diff(coordinates, axis=0)
+
+    # Calculate the Euclidean distances and return the average
+    path_lengths = np.linalg.norm(differences, axis=1)
+    return np.nanmean(path_lengths) if len(path_lengths) > 0 else 0.0
+
+
+def count_fixations_per_area(fixations, areas):
+    """
+    Count the number of fixations for each defined area.
+
+    Parameters
+    ----------
+    fixations : list
+        A list of fixations, where each fixation is represented as
+        a dictionary with 'coordinates' (x, y).
+
+    areas : dict
+        A dictionary where keys are area names and values are tuples
+        defining the area boundaries (x_min, y_min, x_max, y_max).
+
+    Returns
+    -------
+    dict
+        A dictionary with area names as keys and the count of
+        fixations as values.
+    """
+    fixation_count = {area: 0 for area in areas}
+
+    for fixation in fixations:
+        x, y = fixation["x_mean"], fixation["y_mean"]
+        for area, (x_min, y_min, x_max, y_max) in areas.items():
+            if x_min <= x <= x_max and y_min <= y <= y_max:
+                fixation_count[area] += 1
+
+    return fixation_count

@@ -60,40 +60,46 @@ def draw_fixations(  # noqa: PLR0913
     alpha=0.5,
     savefilename=None,
 ):
-    """Draws circles on the fixation locations, optionally on top of an image,
-    with optional weigthing of the duration for circle size and colour
+    """
+    Draw circles on fixation locations, optionally overlaying an image,
+    with optional weighting of duration for circle size and color.
 
-    arguments
+    Parameters
+    ----------
+    fixations : list
+        A list of fixation ending events from a single trial, as produced
+        by `edfreader.read_edf`, e.g. `edfdata[trialnr]['events']['Efix']`.
 
-    fixations		-	a list of fixation ending events from a single trial,
-                    as produced by edfreader.read_edf, e.g.
-                    edfdata[trialnr]['events']['Efix']
-    dispsize		-	tuple or list indicating the size of the display,
-                    e.g. (1024,768)
+    dispsize : tuple or list
+        A tuple or list indicating the size of the display, e.g. (1024, 768).
 
-    keyword arguments
+    imagefile : str, optional
+        Full path to an image file over which the heatmap is to be laid,
+        or None for no image. Note: the image may be smaller than the
+        display size, and the function assumes that the image was
+        presented at the center of the display (default is None).
 
-    imagefile		-	full path to an image file over which the heatmap
-                    is to be laid, or None for no image; NOTE: the image
-                    may be smaller than the display size, the function
-                    assumes that the image was presented at the centre of
-                    the display (default = None)
-    durationsize	-	Boolean indicating whether the fixation duration is
-                    to be taken into account as a weight for the circle
-                    size; longer duration = bigger (default = True)
-    durationcolour	-	Boolean indicating whether the fixation duration is
-                    to be taken into account as a weight for the circle
-                    colour; longer duration = hotter (default = True)
-    alpha		-	float between 0 and 1, indicating the transparancy of
-                    the heatmap, where 0 is completely transparant and 1
-                    is completely untransparant (default = 0.5)
-    savefilename	-	full path to the file in which the heatmap should be
-                    saved, or None to not save the file (default = None)
+    durationsize : bool, optional
+        If True, the fixation duration is taken into account as a weight
+        for the circle size; longer duration = bigger (default is True).
 
-    returns
+    durationcolour : bool, optional
+        If True, the fixation duration is taken into account as a weight
+        for the circle color; longer duration = hotter (default is True).
 
-    fig			-	a matplotlib.pyplot Figure instance, containing the
-                    fixations
+    alpha : float, optional
+        A float between 0 and 1, indicating the transparency of the heatmap,
+        where 0 is completely transparent and 1 is completely opaque
+        (default is 0.5).
+
+    savefilename : str, optional
+        Full path to the file in which the heatmap should be saved,
+        or None to not save the file (default is None).
+
+    Returns
+    -------
+    fig : matplotlib.pyplot.Figure
+        A matplotlib Figure instance containing the fixations.
     """
 
     # FIXATIONS
@@ -118,38 +124,41 @@ def draw_fixations(  # noqa: PLR0913
 
 
 def draw_heatmap(fixations, dispsize, ax, imagefile=None, alpha=0.5, savefilename=None):  # noqa: PLR0913
-    """Draws a heatmap of the provided fixations, optionally drawn over an
-    image, and optionally allocating more weight to fixations with a higher
-    duration.
+    """Draw a heatmap of the provided fixations, optionally overlaying an
+    image, and optionally weighting fixations with a higher duration.
 
-    arguments
+    Parameters
+    ----------
+    fixations : list
+        A list of fixation ending events from a single trial, as produced
+        by `edfreader.read_edf`, e.g. `edfdata[trialnr]['events']['Efix']`.
 
-    fixations		-	a list of fixation ending events from a single trial,
-                    as produced by edfreader.read_edf, e.g.
-                    edfdata[trialnr]['events']['Efix']
-    dispsize		-	tuple or list indicating the size of the display,
-                    e.g. (1024,768)
+    dispsize : tuple or list
+        A tuple or list indicating the size of the display, e.g. (1024, 768).
 
-    keyword arguments
+    imagefile : str, optional
+        Full path to an image file over which the heatmap is to be laid,
+        or None for no image. Note: the image may be smaller than the
+        display size, and the function assumes that the image was
+        presented at the center of the display (default is None).
 
-    imagefile		-	full path to an image file over which the heatmap
-                    is to be laid, or None for no image; NOTE: the image
-                    may be smaller than the display size, the function
-                    assumes that the image was presented at the centre of
-                    the display (default = None)
-    durationweight	-	Boolean indicating whether the fixation duration is
-                    to be taken into account as a weight for the heatmap
-                    intensity; longer duration = hotter (default = True)
-    alpha		-	float between 0 and 1, indicating the transparancy of
-                    the heatmap, where 0 is completely transparant and 1
-                    is completely untransparant (default = 0.5)
-    savefilename	-	full path to the file in which the heatmap should be
-                    saved, or None to not save the file (default = None)
+    durationweight : bool, optional
+        If True, the fixation duration is taken into account as a weight
+        for the heatmap intensity; longer duration = hotter (default is True).
 
-    returns
+    alpha : float, optional
+        A float between 0 and 1, indicating the transparency of the heatmap,
+        where 0 is completely transparent and 1 is completely opaque
+        (default is 0.5).
 
-    fig			-	a matplotlib.pyplot Figure instance, containing the
-                    heatmap
+    savefilename : str, optional
+        Full path to the file in which the heatmap should be saved,
+        or None to not save the file (default is None).
+
+    Returns
+    -------
+    fig : matplotlib.pyplot.Figure
+        A matplotlib Figure instance containing the heatmap.
     """
 
     # FIXATIONS
@@ -218,38 +227,42 @@ def draw_heatmap(fixations, dispsize, ax, imagefile=None, alpha=0.5, savefilenam
 
 
 def draw_eye_heatmap(positions, dispsize, ax, alpha=0.5):
-    """Draws a heatmap of the provided fixations, optionally drawn over an
-    image, and optionally allocating more weight to fixations with a higher
-    duration.
+    """
+    Draw a heatmap of the provided fixations, optionally overlaying an
+    image, and optionally weighting fixations with a higher duration.
 
-    arguments
+    Parameters
+    ----------
+    fixations : list
+        A list of fixation ending events from a single trial, as produced
+        by `edfreader.read_edf`, e.g. `edfdata[trialnr]['events']['Efix']`.
 
-    fixations		-	a list of fixation ending events from a single trial,
-                    as produced by edfreader.read_edf, e.g.
-                    edfdata[trialnr]['events']['Efix']
-    dispsize		-	tuple or list indicating the size of the display,
-                    e.g. (1024,768)
+    dispsize : tuple or list
+        A tuple or list indicating the size of the display, e.g. (1024, 768).
 
-    keyword arguments
+    imagefile : str, optional
+        Full path to an image file over which the heatmap is to be laid,
+        or None for no image. Note: the image may be smaller than the
+        display size, and the function assumes that the image was
+        presented at the center of the display (default is None).
 
-    imagefile		-	full path to an image file over which the heatmap
-                    is to be laid, or None for no image; NOTE: the image
-                    may be smaller than the display size, the function
-                    assumes that the image was presented at the centre of
-                    the display (default = None)
-    durationweight	-	Boolean indicating whether the fixation duration is
-                    to be taken into account as a weight for the heatmap
-                    intensity; longer duration = hotter (default = True)
-    alpha		-	float between 0 and 1, indicating the transparancy of
-                    the heatmap, where 0 is completely transparant and 1
-                    is completely untransparant (default = 0.5)
-    savefilename	-	full path to the file in which the heatmap should be
-                    saved, or None to not save the file (default = None)
+    durationweight : bool, optional
+        If True, the fixation duration is taken into account as a weight
+        for the heatmap intensity; longer duration = hotter (default is True).
 
-    returns
+    alpha : float, optional
+        A float between 0 and 1, indicating the transparency of the heatmap,
+        where 0 is completely transparent and 1 is completely opaque
+        (default is 0.5).
 
-    fig			-	a matplotlib.pyplot Figure instance, containing the
-                    heatmap
+    savefilename : str, optional
+        Full path to the file in which the heatmap should be saved,
+        or None to not save the file (default is None).
+
+    Returns
+    -------
+    fig : matplotlib.pyplot.Figure
+        A matplotlib Figure instance containing the heatmap.
     """
 
     # HEATMAP
@@ -302,38 +315,42 @@ def draw_eye_heatmap(positions, dispsize, ax, alpha=0.5):
 
 
 def animate_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True, alpha=0.5, savefilename=None):
-    """Draws a heatmap of the provided fixations, optionally drawn over an
-    image, and optionally allocating more weight to fixations with a higher
-    duration.
+    """
+    Draw a heatmap of the provided fixations, optionally overlaying an
+    image, and optionally weighting fixations with a higher duration.
 
-    arguments
+    Parameters
+    ----------
+    fixations : list
+        A list of fixation ending events from a single trial, as produced
+        by `edfreader.read_edf`, e.g. `edfdata[trialnr]['events']['Efix']`.
 
-    fixations		-	a list of fixation ending events from a single trial,
-                    as produced by edfreader.read_edf, e.g.
-                    edfdata[trialnr]['events']['Efix']
-    dispsize		-	tuple or list indicating the size of the display,
-                    e.g. (1024,768)
+    dispsize : tuple or list
+        A tuple or list indicating the size of the display, e.g. (1024, 768).
 
-    keyword arguments
+    imagefile : str, optional
+        Full path to an image file over which the heatmap is to be laid,
+        or None for no image. Note: the image may be smaller than the
+        display size, and the function assumes that the image was
+        presented at the center of the display (default is None).
 
-    imagefile		-	full path to an image file over which the heatmap
-                    is to be laid, or None for no image; NOTE: the image
-                    may be smaller than the display size, the function
-                    assumes that the image was presented at the centre of
-                    the display (default = None)
-    durationweight	-	Boolean indicating whether the fixation duration is
-                    to be taken into account as a weight for the heatmap
-                    intensity; longer duration = hotter (default = True)
-    alpha		-	float between 0 and 1, indicating the transparancy of
-                    the heatmap, where 0 is completely transparant and 1
-                    is completely untransparant (default = 0.5)
-    savefilename	-	full path to the file in which the heatmap should be
-                    saved, or None to not save the file (default = None)
+    durationweight : bool, optional
+        If True, the fixation duration is taken into account as a weight
+        for the heatmap intensity; longer duration = hotter (default is True).
 
-    returns
+    alpha : float, optional
+        A float between 0 and 1, indicating the transparency of the heatmap,
+        where 0 is completely transparent and 1 is completely opaque
+        (default is 0.5).
 
-    fig			-	a matplotlib.pyplot Figure instance, containing the
-                    heatmap
+    savefilename : str, optional
+        Full path to the file in which the heatmap should be saved,
+        or None to not save the file (default is None).
+
+    Returns
+    -------
+    fig : matplotlib.pyplot.Figure
+        A matplotlib Figure instance containing the heatmap.
     """
 
     # FIXATIONS
@@ -397,31 +414,34 @@ def animate_heatmap(fixations, dispsize, ax, imagefile=None, durationweight=True
 
 
 def draw_raw(x, y, dispsize, imagefile=None, savefilename=None):
-    """Draws the raw x and y data
+    """
+    Draw the raw x and y data.
 
-    arguments
+    Parameters
+    ----------
+    x : list
+        A list of x coordinates of all samples to be plotted.
 
-    x			-	a list of x coordinates of all samples that are to
-                    be plotted
-    y			-	a list of y coordinates of all samples that are to
-                    be plotted
-    dispsize		-	tuple or list indicating the size of the display,
-                    e.g. (1024,768)
+    y : list
+        A list of y coordinates of all samples to be plotted.
 
-    keyword arguments
+    dispsize : tuple or list
+        A tuple or list indicating the size of the display, e.g. (1024, 768).
 
-    imagefile		-	full path to an image file over which the heatmap
-                    is to be laid, or None for no image; NOTE: the image
-                    may be smaller than the display size, the function
-                    assumes that the image was presented at the centre of
-                    the display (default = None)
-    savefilename	-	full path to the file in which the heatmap should be
-                    saved, or None to not save the file (default = None)
+    imagefile : str, optional
+        Full path to an image file over which the data is to be laid,
+        or None for no image. Note: the image may be smaller than the
+        display size, and the function assumes that the image was
+        presented at the center of the display (default is None).
 
-    returns
+    savefilename : str, optional
+        Full path to the file in which the plot should be saved,
+        or None to not save the file (default is None).
 
-    fig			-	a matplotlib.pyplot Figure instance, containing the
-                    fixations
+    Returns
+    -------
+    fig : matplotlib.pyplot.Figure
+        A matplotlib Figure instance containing the plotted data.
     """
 
     # image
@@ -440,37 +460,42 @@ def draw_raw(x, y, dispsize, imagefile=None, savefilename=None):
 
 
 def draw_scanpath(fixations, saccades, dispsize, imagefile=None, alpha=0.5, savefilename=None):  # noqa: PLR0913
-    """Draws a scanpath: a series of arrows between numbered fixations,
-    optionally drawn over an image
+    """
+    Draw a scanpath: a series of arrows between numbered fixations,
+    optionally overlaying an image.
 
-    arguments
+    Parameters
+    ----------
+    fixations : list
+        A list of fixation ending events from a single trial, as produced
+        by `edfreader.read_edf`, e.g. `edfdata[trialnr]['events']['Efix']`.
 
-    fixations		-	a list of fixation ending events from a single trial,
-                    as produced by edfreader.read_edf, e.g.
-                    edfdata[trialnr]['events']['Efix']
-    saccades		-	a list of saccade ending events from a single trial,
-                    as produced by edfreader.read_edf, e.g.
-                    edfdata[trialnr]['events']['Esac']
-    dispsize		-	tuple or list indicating the size of the display,
-                    e.g. (1024,768)
+    saccades : list
+        A list of saccade ending events from a single trial, as produced
+        by `edfreader.read_edf`, e.g. `edfdata[trialnr]['events']['Esac']`.
 
-    keyword arguments
+    dispsize : tuple or list
+        A tuple or list indicating the size of the display, e.g. (1024, 768).
 
-    imagefile		-	full path to an image file over which the heatmap
-                    is to be laid, or None for no image; NOTE: the image
-                    may be smaller than the display size, the function
-                    assumes that the image was presented at the centre of
-                    the display (default = None)
-    alpha		-	float between 0 and 1, indicating the transparancy of
-                    the heatmap, where 0 is completely transparant and 1
-                    is completely untransparant (default = 0.5)
-    savefilename	-	full path to the file in which the heatmap should be
-                    saved, or None to not save the file (default = None)
+    imagefile : str, optional
+        Full path to an image file over which the scanpath is to be drawn,
+        or None for no image. Note: the image may be smaller than the
+        display size, and the function assumes that the image was
+        presented at the center of the display (default is None).
 
-    returns
+    alpha : float, optional
+        A float between 0 and 1 indicating the transparency of the scanpath,
+        where 0 is completely transparent and 1 is completely opaque
+        (default is 0.5).
 
-    fig			-	a matplotlib.pyplot Figure instance, containing the
-                    heatmap
+    savefilename : str, optional
+        Full path to the file in which the scanpath should be saved,
+        or None to not save the file (default is None).
+
+    Returns
+    -------
+    fig : matplotlib.pyplot.Figure
+        A matplotlib Figure instance containing the scanpath.
     """
 
     # image
@@ -533,27 +558,29 @@ def draw_scanpath(fixations, saccades, dispsize, imagefile=None, alpha=0.5, save
 
 
 def draw_display(dispsize, imagefile=None):
-    """Returns a matplotlib.pyplot Figure and its axes, with a size of
-    dispsize, a black background colour, and optionally with an image drawn
-    onto it
+    """
+    Returns a matplotlib.pyplot Figure and its axes, with a size of
+    dispsize, a black background color, and optionally with an image drawn
+    onto it.
 
-    arguments
+    Parameters
+    ----------
+    dispsize : tuple or list
+        A tuple or list indicating the size of the display, e.g. (1024, 768).
 
-    dispsize		-	tuple or list indicating the size of the display,
-                    e.g. (1024,768)
+    imagefile : str, optional
+        Full path to an image file to be drawn onto the figure, or None
+        for no image. Note: the image may be smaller than the display size,
+        and the function assumes that the image was presented at the center
+        of the display (default is None).
 
-    keyword arguments
+    Returns
+    -------
+    fig : matplotlib.pyplot.Figure
+        A matplotlib Figure instance with a black background.
 
-    imagefile		-	full path to an image file over which the heatmap
-                    is to be laid, or None for no image; NOTE: the image
-                    may be smaller than the display size, the function
-                    assumes that the image was presented at the centre of
-                    the display (default = None)
-
-    returns
-    fig, ax		-	matplotlib.pyplot Figure and its axes: field of zeros
-                    with a size of dispsize, and an image drawn onto it
-                    if an imagefile was passed
+    ax : matplotlib.pyplot.Axes
+        The axes of the figure, which may contain the image if provided.
     """
 
     # construct screen (black background)
@@ -602,16 +629,28 @@ def draw_display(dispsize, imagefile=None):
 
 
 def gaussian(x, sx, y=None, sy=None):
-    """Returns an array of numpy arrays (a matrix) containing values between
-    1 and 0 in a 2D Gaussian distribution
+    """
+    Returns an array of numpy arrays (a matrix) containing values between
+    1 and 0 in a 2D Gaussian distribution.
 
-    arguments
-    x		-- width in pixels
-    sx		-- width standard deviation
+    Parameters
+    ----------
+    x : int
+        Width in pixels.
 
-    keyword argments
-    y		-- height in pixels (default = x)
-    sy		-- height standard deviation (default = sx)
+    sx : float
+        Width standard deviation.
+
+    y : int, optional
+        Height in pixels (default is x).
+
+    sy : float, optional
+        Height standard deviation (default is sx).
+
+    Returns
+    -------
+    numpy.ndarray
+        A 2D array representing the Gaussian distribution values.
     """
 
     # square Gaussian if only x values are passed
@@ -635,19 +674,21 @@ def gaussian(x, sx, y=None, sy=None):
 
 
 def parse_fixations(fixations):
-    """Returns all relevant data from a list of fixation ending events
+    """
+    Returns all relevant data from a list of fixation ending events.
 
-    arguments
+    Parameters
+    ----------
+    fixations : list
+        A list of fixation ending events from a single trial, as produced
+        by `edfreader.read_edf`, e.g. `edfdata[trialnr]['events']['Efix']`.
 
-    fixations		-	a list of fixation ending events from a single trial,
-                    as produced by edfreader.read_edf, e.g.
-                    edfdata[trialnr]['events']['Efix']
-
-    returns
-
-    fix		-	a dict with three keys: 'x', 'y', and 'dur' (each contain
-                a numpy array) for the x and y coordinates and duration of
-                each fixation
+    Returns
+    -------
+    dict
+        A dictionary with three keys: 'x', 'y', and 'dur', each containing
+        a numpy array for the x coordinates, y coordinates, and duration
+        of each fixation, respectively.
     """
 
     # empty arrays to contain fixation coordinates
