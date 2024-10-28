@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-"""PyGazeAnalyser is a Python module for easily analysing eye-tracking data.
-
-Copyright (C) 2014  Edwin S. Dalmaijer.
-"""
-
 import numpy as np
 import pandas as pd
 
@@ -125,7 +119,7 @@ def detect_blinks(x, y, time, missing=0.0, minlen=10):
     return blinks
 
 
-def calculate_blink_rate(blinks, total_time):
+def blink_rate(blinks, total_time):
     """
     Calculate the blink rate over a given time period.
 
@@ -255,7 +249,7 @@ def find_fixations(x, y, time, missing=0.0, maxdist=25, mindur=50):  # noqa: PLR
     return fixation_results
 
 
-def calculate_saccades(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):  # noqa: PLR0913
+def saccades(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):  # noqa: PLR0913
     """
     Detect saccades from eye-tracking data based on velocity and acceleration.
 
@@ -433,3 +427,90 @@ def fixation_metrics(fixations, areas):
     }
 
     return fixation_count, fixation_duration, percentage_time
+
+
+def analyze_saccades(saccades, distance_between_eyes):
+    """
+    Analyze saccades to calculate angular amplitudes and frequency.
+
+    The saccade amplitude is calculated as the angular displacement
+    from the initial position to the destination. The frequency is
+    determined by counting the number of saccades over the total time
+    interval.
+
+    Parameters
+    ----------
+    saccades : list of dict
+        A list of dictionaries, where each dictionary contains the following keys:
+        - 'start_time' : int
+            The start time of the saccade in milliseconds.
+        - 'end_time' : int
+            The end time of the saccade in milliseconds.
+        - 'duration' : int
+            The duration of the saccade in milliseconds.
+        - 'x_start' : float
+            The x-coordinate of the initial position in pixels.
+        - 'y_start' : float
+            The y-coordinate of the initial position in pixels.
+        - 'x_end' : float
+            The x-coordinate of the final position in pixels.
+        - 'y_end' : float
+            The y-coordinate of the final position in pixels.
+
+    distance_between_eyes : float
+        The distance from the eye to the fixation plane in millimeters. This
+        value is crucial for calculating the angular displacement.
+
+    Returns
+    -------
+    dict
+        A dictionary with the following keys:
+        - 'amplitudes' : list of float
+            A list of angular amplitudes of each saccade in degrees.
+        - 'frequency' : float
+            The frequency of saccades in Hz (saccades per second).
+
+    Notes
+    -----
+    The angular amplitude is computed using the formula:
+
+        Amplitude (in degrees) = 2 * arctan(d / (2 * distance_between_eyes))
+
+    where `d` is the Euclidean distance between the start and end positions
+    of the saccade.
+
+    Example
+    -------
+    saccades = [
+        {'start_time': 0, 'end_time': 10, 'duration': 10, 'x_start': 100,
+         'y_start': 200, 'x_end': 110, 'y_end': 203},
+        {'start_time': 15, 'end_time': 25, 'duration': 10, 'x_start': 110,
+         'y_start': 203, 'x_end': 115, 'y_end': 210},
+    ]
+    distance_between_eyes = 600  # Example fixation distance
+    result = analyze_saccades(saccades, distance_between_eyes)
+    """
+    amplitudes = []
+    saccades_count = len(saccades)
+
+    for saccade in saccades:
+        # Calculate the linear distance moved (Euclidean distance)
+        dx = saccade["x_end"] - saccade["x_start"]
+        dy = saccade["y_end"] - saccade["y_start"]
+        distance = np.sqrt(dx**2 + dy**2)
+
+        # Calculate angular amplitude (in degrees)
+        amplitude = 2 * np.arctan(distance / (2 * distance_between_eyes)) * (180 / np.pi)  # Convert radians to degrees
+        amplitudes.append(amplitude)
+
+    if saccades_count == 0:
+        frequency = 0.0
+    else:
+        # Calculate the time span of the first and last saccade
+        start_time = saccades[0]["start_time"]
+        end_time = saccades[-1]["end_time"]
+        total_time = (end_time - start_time) / 1000.0  # Convert ms to seconds
+
+        frequency = saccades_count / total_time if total_time > 0 else 0.0
+
+    return {"amplitudes": amplitudes, "frequency": frequency}

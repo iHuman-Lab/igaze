@@ -123,8 +123,8 @@ def draw_fixations(  # noqa: PLR0913
     imagefile=None,
     alpha=0.5,
     savefile=None,
-    size_by_duration=True,
-    color_by_duration=True,
+    size_by_duration=None,
+    color_by_duration=None,
 ):
     """
     Draw circles on fixation locations, optionally overlaying an image.
@@ -325,7 +325,8 @@ def visualize_data(fixations, size, imagefile=None, savefile=None):
         ax.annotate(i, (x, y), textcoords="offset points", xytext=(0, 5), ha="center")
 
     for (x1, y1), (x2, y2) in zip(
-        zip(fixations["x_mean"], fixations["y_mean"]), zip(fixations["x_mean"][1:], fixations["y_mean"][1:])
+        zip(fixations["x_mean"], fixations["y_mean"]),
+        zip(fixations["x_mean"][1:], fixations["y_mean"][1:]),
     ):
         ax.arrow(x1, y1, x2 - x1, y2 - y1, head_width=3, head_length=5, fc="k", ec="k")
 
