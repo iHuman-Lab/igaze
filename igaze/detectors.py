@@ -273,3 +273,8 @@ def scan_path(fixations):
     path = numpy.array([fix["x"], fix["y"]]).transpose()
     path_length = numpy.linalg.norm(numpy.diff(path, axis=0), axis=1)
     return numpy.nanmean(path_length)
+
+
+
+
+
