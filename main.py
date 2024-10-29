@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from igaze.detectors import fixation_detection
+from igaze.detectors import detect_blinks, find_fixations
 from utils import skip_run
 
 # The configuration file
@@ -16,12 +16,22 @@ with Path("configs/config.yml").open() as f:
 with skip_run("run", "test_data_loading") as check, check():
     data = pd.read_csv(config["data_path"])
 
-    start_fixation, end_fixation = fixation_detection(
+    fixations = find_fixations(
         data["avg_x"],
         data["avg_y"],
-        time=data["time"],
+        time=data["time"].array,
         mindur=10,
         maxdist=0.5,
     )
 
-    print(start_fixation, end_fixation)
+    print(fixations)
+
+    blinks = detect_blinks(
+        data["avg_x"],
+        data["avg_y"],
+        time=data["time"].array,
+        missing=2,
+        minlen=5,
+    )
+
+    print(blinks)
