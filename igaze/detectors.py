@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from igaze.gazeplotter import parse_fixations
+from igaze.utils import is_within_aoi
 
 MISSING_VALUE = 2
 
@@ -514,3 +515,52 @@ def analyze_saccades(saccades, distance_between_eyes):
         frequency = saccades_count / total_time if total_time > 0 else 0.0
 
     return {"amplitudes": amplitudes, "frequency": frequency}
+
+
+def gaze_hit_rate_per_aoi(participant_data, aois):
+    """
+    Calculate the gaze hit rate for each AOI based on participants' gaze data.
+    To calculate the hit rate, you count the number of participants
+    who looked at the AOI, and then divide that number by the total number of participants.
+    For example, if there are five participants in a dataset
+    and one person looked at an AOI, the hit rate for that AOI would be 20%.
+
+
+    Parameters
+    ----------
+    participant_data : list of dict
+        A list where each dictionary contains:
+        - 'id': Participant identifier.
+        - 'gaze_points': List of tuples representing gaze points (x, y) for the participant.
+    aois : list of dict
+        A list of dictionaries defining the AOI boundaries. Each dictionary has the keys:
+        - 'name': Name of the AOI.
+        - 'x_min': Minimum x-coordinate of the AOI.
+        - 'x_max': Maximum x-coordinate of the AOI.
+        - 'y_min': Minimum y-coordinate of the AOI.
+        - 'y_max': Maximum y-coordinate of the AOI.
+
+    Returns
+    -------
+    dict
+        A dictionary with AOI names as keys and their corresponding hit rates as values (in percentage).
+    """
+    hit_rates = {}
+    total_participants = len(participant_data)
+
+    if total_participants == 0:
+        return {aoi["name"]: 0.0 for aoi in aois}  # Avoid division by zero if there's no data
+
+    for aoi in aois:
+        gazed_at_aoi_count = 0
+
+        for participant in participant_data:
+            gaze_points = participant["gaze_points"]  # Assuming gaze points are in a list of tuples
+            # Check if any gaze point for this participant is within the AOI
+            if any(is_within_aoi(point, aoi) for point in gaze_points):
+                gazed_at_aoi_count += 1
+
+        # Calculate the hit rate for the current AOI
+        hit_rates[aoi["name"]] = gazed_at_aoi_count / total_participants
+
+    return hit_rates
