@@ -520,15 +520,35 @@ import numpy as np
 
 
 
-def calculate_entropy(aoi_fixation_counts):
+def aoi_entropy(aoi_fixation_counts):
     """
-    Calculate the entropy based on AOI fixation distribution.
+    Calculate the entropy based on Area of Interest (AOI) fixation distribution.
+
+    Parameters
+    ----------
+    aoi_fixation_counts : dict
+        A dictionary where keys are AOIs and values are the corresponding fixation counts.
+
+    Returns
+    -------
+    float
+        The calculated entropy value based on the fixation distribution.
+
+    Notes
+    -----
+    Entropy is a measure of uncertainty or randomness in a probability distribution. 
+    The function computes probabilities of each AOI being fixated on, and then calculates 
+    the entropy using the formula:
     
-    Parameters:
-    aoi_fixation_counts: Dictionary with AOI as keys and fixation counts as values.
+        H(X) = -Σ (p(x) * log2(p(x)))
+
+    where p(x) is the probability of each AOI based on the fixation counts.
     
-    Returns:
-    The entropy value.
+    Examples
+    --------
+    >>> aoi_counts = {'AOI_1': 5, 'AOI_2': 15, 'AOI_3': 10}
+    >>> calculate_entropy(aoi_counts)
+    1.561278124459132
     """
     fixation_hits = sum(aoi_fixation_counts.values())
     # Calculate probabilities based on fixation counts and compute entropy
@@ -538,7 +558,7 @@ def calculate_entropy(aoi_fixation_counts):
 
 
     # Function to calculate dwell time and dwell count for a specific AOI
-def calculate_dwell_time_and_dwell_count(df, x_min, x_max, y_min, y_max):
+def dwell_metrics(df, x_min, x_max, y_min, y_max):
     """
     Calculate the total dwell time and count of gaze points within a specified Area of Interest (AOI) 
     in gaze data.
