@@ -514,3 +514,79 @@ def analyze_saccades(saccades, distance_between_eyes):
         frequency = saccades_count / total_time if total_time > 0 else 0.0
 
     return {"amplitudes": amplitudes, "frequency": frequency}
+
+import numpy as np
+
+
+
+
+def calculate_entropy(aoi_fixation_counts):
+    """
+    Calculate the entropy based on AOI fixation distribution.
+    
+    Parameters:
+    aoi_fixation_counts: Dictionary with AOI as keys and fixation counts as values.
+    
+    Returns:
+    The entropy value.
+    """
+    fixation_hits = sum(aoi_fixation_counts.values())
+    # Calculate probabilities based on fixation counts and compute entropy
+    probabilities = [count / fixation_hits for count in aoi_fixation_counts.values() if fixation_hits > 0]
+    entropy = -sum(p * np.log2(p) for p in probabilities if p > 0)
+    return entropy
+
+
+    # Function to calculate dwell time and dwell count for a specific AOI
+def calculate_dwell_time_and_dwell_count(df, x_min, x_max, y_min, y_max):
+    """
+    Calculate the total dwell time and count of gaze points within a specified Area of Interest (AOI) 
+    in gaze data.
+
+    Parameters:
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing gaze data with at least 'gaze_position_x', 'gaze_position_y', 
+        and 'duration' columns, where:
+          - 'gaze_position_x': x-coordinates of gaze points,
+          - 'gaze_position_y': y-coordinates of gaze points,
+          - 'duration': duration (in milliseconds) for each gaze point.
+    x_min : float
+        The minimum x-coordinate of the AOI boundary.
+    x_max : float
+        The maximum x-coordinate of the AOI boundary.
+    y_min : float
+        The minimum y-coordinate of the AOI boundary.
+    y_max : float
+        The maximum y-coordinate of the AOI boundary.
+
+    Returns:
+    -------
+    total_dwell_time_in_aoi : float
+        Total duration (in milliseconds) spent on gaze points within the AOI.
+    dwell_count : int
+        Number of gaze points located within the AOI.
+    
+    Notes:
+    ------
+    The Area of Interest (AOI) is defined by a rectangular boundary with x and y coordinates.
+    Only gaze points falling within this boundary contribute to the total dwell time and count.
+    """
+
+    # Filter the data to include only gaze points within the AOI
+    aoi_gaze_points = df[
+        (df['gaze_position_x'] >= x_min) & 
+        (df['gaze_position_x'] <= x_max) & 
+        (df['gaze_position_y'] >= y_min) & 
+        (df['gaze_position_y'] <= y_max)
+    ]
+
+    # Calculate the total dwell time by summing durations
+    total_dwell_time_in_aoi = aoi_gaze_points['duration'].sum()
+
+    # Calculate the dwell count (number of individual gaze points within AOI)
+    dwell_count = len(aoi_gaze_points)
+
+    # Return both dwell time and dwell count
+    return total_dwell_time_in_aoi, dwell_count
+
