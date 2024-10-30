@@ -4,6 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from PIL import Image
 
+from igaze.utils import parse_fixations
+
 # COLOURS (from Tango color palette)
 COLS = {
     "butter": ["#fce94f", "#edd400", "#c4a000"],
@@ -15,27 +17,6 @@ COLS = {
     "scarletred": ["#ef2929", "#cc0000", "#a40000"],
     "aluminium": ["#eeeeec", "#d3d7cf", "#babdb6", "#888a85", "#555753", "#2e3436"],
 }
-
-
-def parse_fixations(fixations):
-    """
-    Extract fixation data into a structured format.
-
-    Parameters
-    ----------
-    fixations : list of dict
-        A list of dictionaries containing fixation data.
-
-    Returns
-    -------
-    dict
-        A dictionary with arrays of x_mean, y_mean, and duration.
-    """
-    return {
-        "x_mean": np.array([f["x_mean"] for f in fixations]),
-        "y_mean": np.array([f["y_mean"] for f in fixations]),
-        "duration": np.array([f["duration"] for f in fixations]),
-    }
 
 
 def draw_display(size, imagefile=None):
