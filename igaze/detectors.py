@@ -590,3 +590,121 @@ def calculate_dwell_time_and_dwell_count(df, x_min, x_max, y_min, y_max):
     # Return both dwell time and dwell count
     return total_dwell_time_in_aoi, dwell_count
 
+
+def calculate_fixation_rate(number_of_fixations, total_time_seconds):
+    """
+    Calculate the fixation rate (fixations per second).
+
+    Parameters:
+    - number_of_fixations (int): The total number of fixations.
+    - total_time_seconds (float): The total time in seconds.
+
+    Returns:
+    - float: The fixation rate in fixations per second, or 0 if total time is zero.
+    """
+    
+    # Check if total time is greater than zero to avoid division by zero
+    if total_time_seconds > 0:
+        # Calculate fixation rate as fixations per second
+        fixation_rate = number_of_fixations / total_time_seconds
+    else:
+        # Set fixation rate to zero if total time is zero
+        fixation_rate = 0
+
+    return fixation_rate
+
+
+
+def calculate_fixation_location_index(fixations, aois):
+    """
+    Calculate the fixation location derived index, which is the average x and y positions
+    of fixations within defined AOIs (Areas of Interest).
+    
+    Parameters:
+    - fixations (list): List of fixation points with x, y coordinates and duration.
+    - aois (list): List of AOIs, each defined by boundaries and an ID.
+
+    Returns:
+    - tuple: Average x and y coordinates of fixations within AOIs, or (None, None) if no fixations within AOIs.
+    """
+    
+    aoi_fixations_x = []
+    aoi_fixations_y = []
+
+    # Count fixations within AOIs
+    for fixation in fixations:
+        x, y = fixation['gaze_position_x'], fixation['gaze_position_y']
+        
+        # Check if the fixation is within any AOI
+        for aoi in aois:
+            if aoi['x_min'] <= x <= aoi['x_max'] and aoi['y_min'] <= y <= aoi['y_max']:
+                aoi_fixations_x.append(x)
+                aoi_fixations_y.append(y)
+                break
+
+    # Calculate average fixation location if there are fixations within AOIs
+    if aoi_fixations_x and aoi_fixations_y:
+        avg_fixation_x = sum(aoi_fixations_x) / len(aoi_fixations_x)
+        avg_fixation_y = sum(aoi_fixations_y) / len(aoi_fixations_y)
+    else:
+        avg_fixation_x, avg_fixation_y = None, None
+
+    return avg_fixation_x, avg_fixation_y
+
+
+
+
+
+
+def calculate_run_count(fixations, aois):
+    """
+    Calculate the run count, or the number of transitions between AOIs in the fixation sequence.
+    
+    Parameters:
+    - fixations (list): List of fixation points with x and y coordinates.
+    - aois (list): List of AOIs, each defined by boundaries and an ID.
+
+    Returns:
+    - int: The run count representing transitions between AOIs.
+    """
+    
+    run_count = 0
+    previous_aoi = None
+
+    for fixation in fixations:
+        x, y = fixation['gaze_position_x'], fixation['gaze_position_y']
+        current_aoi = None
+        
+        # Determine the current AOI for the fixation
+        for aoi in aois:
+            if aoi['x_min'] <= x <= aoi['x_max'] and aoi['y_min'] <= y <= aoi['y_max']:
+                current_aoi = aoi['id']
+                break
+        
+        # Update run count if there’s a transition to a new AOI
+        if current_aoi is not None and current_aoi != previous_aoi:
+            run_count += 1
+            previous_aoi = current_aoi
+        elif current_aoi is None:
+            previous_aoi = None
+
+    return run_count
+
+
+
+
+def calculate_turn_rate(run_count, number_of_fixations):
+    """
+    Calculate the turn rate, or the rate of transitions between AOIs per fixation.
+    
+    Parameters:
+    - run_count (int): The number of AOI transitions.
+    - number_of_fixations (int): The total number of fixations.
+
+    Returns:
+    - float: The turn rate as a percentage of transitions per fixation.
+    """
+    
+    # Calculate turn rate if there are fixations, otherwise set to 0
+    turn_rate = (run_count / number_of_fixations) * 100 if number_of_fixations > 0 else 0
+    return turn_rate
