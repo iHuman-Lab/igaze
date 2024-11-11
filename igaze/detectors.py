@@ -591,11 +591,6 @@ def calculate_dwell_time_and_dwell_count(df, x_min, x_max, y_min, y_max):
     return total_dwell_time_in_aoi, dwell_count
 
 
-
-
-import numpy as np
-from sklearn.neighbors import NearestNeighbors
-
 # Extract fixation points for gaze positions in 3D space (x, y, z coordinates)
 fixation_points = data[['gaze_position_x', 'gaze_position_y', 'gaze_position_z']].values
 
@@ -658,9 +653,6 @@ def fixation_rate(fixation_count, data):
 
 
 
-
-
-
 # Define the Area of Interest 
 AOI_1 = data[(data['gaze_position_x'] >= 50) & (data['gaze_position_x'] <= 100) &
              (data['gaze_position_y'] >= 100) & (data['gaze_position_y'] <= 150)]
@@ -681,12 +673,6 @@ def run_count(AOI_1):
 # Run the function and print the result
 AOI_1_count = run_count(AOI_1)
 print(f"Number of entries within AOI_1: {AOI_1_count}")
-
-
-
-
-
-
 
 
 
@@ -736,7 +722,6 @@ def turn_rate(data, object1_bounds, object2_bounds):
     return turn_rate
 
     
-
 
 
 
