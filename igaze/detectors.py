@@ -516,6 +516,7 @@ def analyze_saccades(saccades, distance_between_eyes):
 
     return {"amplitudes": amplitudes, "frequency": frequency}
 
+
 def aoi_entropy(aoi_fixation_counts):
     """
     Calculate the entropy based on Area of Interest (AOI) fixation distribution.
@@ -553,7 +554,7 @@ def aoi_entropy(aoi_fixation_counts):
     return entropy
 
 
-    # Function to calculate dwell time and dwell count for a specific AOI
+# Function to calculate dwell time and dwell count for a specific AOI
 def dwell_metrics(df, x_min, x_max, y_min, y_max):
     """
     Calculate the total dwell time and count of gaze points within a specified Area of Interest (AOI) 
@@ -605,6 +606,85 @@ def dwell_metrics(df, x_min, x_max, y_min, y_max):
 
     # Return both dwell time and dwell count
     return total_dwell_time_in_aoi, dwell_count
+
+
+def turn_rate(gaze_data, aoi1_bounds, aoi2_bounds):
+    """
+    Calculate the turn rate based on transitions between two areas of interest (AOIs) in gaze data.
+
+    The turn rate is defined as the number of transitions between the first AOI and the second AOI 
+    in either direction (AOI1 to AOI2 or AOI2 to AOI1) based on gaze positions recorded in the eyetracker data.
+
+    Parameters
+    ----------
+    gaze_data : pd.DataFrame
+        A DataFrame containing gaze positions with at least two columns: 
+        `gaze_position_x` and `gaze_position_y`, representing the x and y coordinates of 
+        the gaze at each point in time.
+    aoi1_bounds : tuple
+        The boundaries of the first Area of Interest (AOI1), represented as (x_min, x_max, y_min, y_max), 
+        where the x and y values define the rectangular area occupied by the first AOI.
+    aoi2_bounds : tuple
+        The boundaries of the second Area of Interest (AOI2), represented as (x_min, x_max, y_min, y_max), 
+        where the x and y values define the rectangular area occupied by the second AOI.
+
+    Returns
+    -------
+    int
+        The total number of transitions (turns) between AOI1 and AOI2 or vice versa.
+        Each time the gaze crosses from one AOI to the other, the turn count is incremented.
+
+    Notes
+    -----
+    - A transition is only counted when the gaze moves from AOI1 to AOI2 or from 
+      AOI2 to AOI1 between consecutive gaze positions.
+    - If there are any gaps in the gaze data (i.e., the gaze position is outside both AOIs), 
+      no transition is counted for those frames.
+    - This function assumes the gaze data is ordered by time in the DataFrame.
+
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> gaze_data = pd.DataFrame({
+    >>>     'gaze_position_x': [100, 150, 200, 250, 100],
+    >>>     'gaze_position_y': [200, 200, 200, 200, 200]
+    >>> })
+    >>> aoi1_bounds = (50, 150, 150, 250)
+    >>> aoi2_bounds = (200, 300, 150, 250)
+    >>> turn_rate(gaze_data, aoi1_bounds, aoi2_bounds)
+    2
+    """
+    # Initialize variables
+    previous_aoi = None
+    transition_count = 0
+
+    # Helper function to check if a gaze point is within the bounds of an AOI
+    def is_within_bounds(x, y, bounds):
+        x_min, x_max, y_min, y_max = bounds
+        return x_min <= x <= x_max and y_min <= y <= y_max
+
+    # Iterate over each gaze position in the dataset
+    for _, gaze_point in gaze_data.iterrows():
+        x, y = gaze_point['gaze_position_x'], gaze_point['gaze_position_y']
+
+        # Determine the current AOI based on gaze position
+        if is_within_bounds(x, y, aoi1_bounds):
+            current_aoi = 'AOI1'
+        elif is_within_bounds(x, y, aoi2_bounds):
+            current_aoi = 'AOI2'
+        else:
+            current_aoi = None
+
+        # Check for transitions between AOI1 and AOI2
+        if previous_aoi == 'AOI1' and current_aoi == 'AOI2':
+            transition_count += 1
+        elif previous_aoi == 'AOI2' and current_aoi == 'AOI1':
+            transition_count += 1
+
+        # Update the previous AOI for the next iteration
+        previous_aoi = current_aoi
+
+    return transition_count
 
   
 def gaze_hit_rate_per_aoi(participant_data, aois):
