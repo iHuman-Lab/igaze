@@ -515,9 +515,6 @@ def analyze_saccades(saccades, distance_between_eyes):
 
     return {"amplitudes": amplitudes, "frequency": frequency}
 
-import numpy as np
-
-
 
 
 def calculate_entropy(aoi_fixation_counts):
@@ -591,135 +588,84 @@ def calculate_dwell_time_and_dwell_count(df, x_min, x_max, y_min, y_max):
     return total_dwell_time_in_aoi, dwell_count
 
 
-# Extract fixation points for gaze positions in 3D space (x, y, z coordinates)
-fixation_points = data[['gaze_position_x', 'gaze_position_y', 'gaze_position_z']].values
-
-def fixation_location_derived_index(fixation_points):
+def turn_rate(gaze_data, aoi1_bounds, aoi2_bounds):
     """
-    Calculate the fixation location derived index by finding the nearest neighbors
-    of each fixation point in 3D space.
-    
-    Parameters:
-    fixation_points (numpy.ndarray): A 2D array of shape (n_samples, 3) where each row
-                                     represents a fixation point in 3D space with (x, y, z) coordinates.
-    
-    Returns:
-    tuple:
-        - indices (numpy.ndarray): A 2D array of shape (n_samples, n_neighbors) containing
-                                   the indices of the nearest neighbors for each 3D fixation point.
-        - distances (numpy.ndarray): A 2D array of shape (n_samples, n_neighbors) containing
-                                     the distances to the nearest neighbors for each 3D fixation point.
-    """
-    
-    # Initialize the Nearest Neighbors model with 3 neighbors, using the KD-tree algorithm for efficiency in 3D space
-    nbrs = NearestNeighbors(n_neighbors=3, algorithm='kd_tree').fit(fixation_points)
-    
-    # Find the distances and indices of the 3 nearest neighbors for each fixation point in 3D
-    distances, indices = nbrs.kneighbors(fixation_points)
-    
-    # Print the indices of the nearest neighbors for debugging purposes
-    print("Indices of nearest neighbors:\n", indices)
-    
-    # Print the distances to the nearest neighbors for debugging purposes
-    print("Distances to nearest neighbors:\n", distances)
-    
-    return indices, distances
+    Calculate the turn rate based on transitions between two areas of interest (AOIs) in gaze data.
 
-indices, distances = fixation_location_derived_index(fixation_points)
+    The turn rate is defined as the number of transitions between the first AOI and the second AOI 
+    in either direction (AOI1 to AOI2 or AOI2 to AOI1) based on gaze positions recorded in the eyetracker data.
 
+    Parameters
+    ----------
+    gaze_data : pd.DataFrame
+        A DataFrame containing gaze positions with at least two columns: 
+        `gaze_position_x` and `gaze_position_y`, representing the x and y coordinates of 
+        the gaze at each point in time.
+    aoi1_bounds : tuple
+        The boundaries of the first Area of Interest (AOI1), represented as (x_min, x_max, y_min, y_max), 
+        where the x and y values define the rectangular area occupied by the first AOI.
+    aoi2_bounds : tuple
+        The boundaries of the second Area of Interest (AOI2), represented as (x_min, x_max, y_min, y_max), 
+        where the x and y values define the rectangular area occupied by the second AOI.
 
+    Returns
+    -------
+    int
+        The total number of transitions (turns) between AOI1 and AOI2 or vice versa.
+        Each time the gaze crosses from one AOI to the other, the turn count is incremented.
 
+    Notes
+    -----
+    - A transition is only counted when the gaze moves from AOI1 to AOI2 or from 
+      AOI2 to AOI1 between consecutive gaze positions.
+    - If there are any gaps in the gaze data (i.e., the gaze position is outside both AOIs), 
+      no transition is counted for those frames.
+    - This function assumes the gaze data is ordered by time in the DataFrame.
 
-
-
-
-
-
-
-def fixation_rate(fixation_count, data):
-    """
-    Calculate the fixation rate given fixation count and duration data.
-
-    Parameters:
-    - fixation_count (int): The number of fixations.
-    - data (dict): A dictionary with a 'duration' key containing a list of durations.
-
-    Returns:
-    - float: The fixation rate (fixation_count divided by total duration).
-    """
-    total_duration = sum(data['duration']) 
-    rate = fixation_count / total_duration 
-    return rate
-
-
-
-# Define the Area of Interest 
-AOI_1 = data[(data['gaze_position_x'] >= 50) & (data['gaze_position_x'] <= 100) &
-             (data['gaze_position_y'] >= 100) & (data['gaze_position_y'] <= 150)]
-
-# Function to count the number of entries within the AOI
-def run_count(AOI_1):
-    """
-    Counts the number of rows in the specified Area of Interest (AOI).
-
-    Parameters:
-        AOI (DataFrame): The filtered DataFrame representing the Area of Interest.
-
-    Returns:
-        int: The count of rows in the AOI.
-    """
-    return AOI_1.shape[0]
-
-# Run the function and print the result
-AOI_1_count = run_count(AOI_1)
-print(f"Number of entries within AOI_1: {AOI_1_count}")
-
-
-
-
-def turn_rate(data, object1_bounds, object2_bounds):
-    """
-    Calculate the turn rate based on transitions between two objects.
-
-    Parameters:
-    - data (pd.DataFrame): The eyetracker data containing `gaze_position_x` and `gaze_position_y`.
-    - object1_bounds (tuple): The boundary for object 1 in the format (x_min, x_max, y_min, y_max).
-    - object2_bounds (tuple): The boundary for object 2 in the format (x_min, x_max, y_min, y_max).
-
-    Returns:
-    - int: The calculated turn rate (number of transitions from object1 to object2 or object2 to object1).
+    Examples
+    --------
+    >>> import pandas as pd
+    >>> gaze_data = pd.DataFrame({
+    >>>     'gaze_position_x': [100, 150, 200, 250, 100],
+    >>>     'gaze_position_y': [200, 200, 200, 200, 200]
+    >>> })
+    >>> aoi1_bounds = (50, 150, 150, 250)
+    >>> aoi2_bounds = (200, 300, 150, 250)
+    >>> turn_rate(gaze_data, aoi1_bounds, aoi2_bounds)
+    2
     """
     # Initialize variables
-    previous_object = None
-    turn_rate = 0
+    previous_aoi = None
+    transition_count = 0
 
-    # Helper function to check if a point is within the given bounds
+    # Helper function to check if a gaze point is within the bounds of an AOI
     def is_within_bounds(x, y, bounds):
         x_min, x_max, y_min, y_max = bounds
         return x_min <= x <= x_max and y_min <= y <= y_max
 
     # Iterate over each gaze position in the dataset
-    for _, row in data.iterrows():
-        x, y = row['gaze_position_x'], row['gaze_position_y']
+    for _, gaze_point in gaze_data.iterrows():
+        x, y = gaze_point['gaze_position_x'], gaze_point['gaze_position_y']
 
-        # Determine the current object based on gaze position
-        if is_within_bounds(x, y, object1_bounds):
-            current_object = 'object1'
-        elif is_within_bounds(x, y, object2_bounds):
-            current_object = 'object2'
+        # Determine the current AOI based on gaze position
+        if is_within_bounds(x, y, aoi1_bounds):
+            current_aoi = 'AOI1'
+        elif is_within_bounds(x, y, aoi2_bounds):
+            current_aoi = 'AOI2'
         else:
-            current_object = None
+            current_aoi = None
 
-        # Check for specific transitions between object1 and object2
-        if previous_object == 'object1' and current_object == 'object2':
-            turn_rate += 1
-        elif previous_object == 'object2' and current_object == 'object1':
-            turn_rate += 1
+        # Check for transitions between AOI1 and AOI2
+        if previous_aoi == 'AOI1' and current_aoi == 'AOI2':
+            transition_count += 1
+        elif previous_aoi == 'AOI2' and current_aoi == 'AOI1':
+            transition_count += 1
 
-        # Update the previous object
-        previous_object = current_object
+        # Update the previous AOI for the next iteration
+        previous_aoi = current_aoi
 
-    return turn_rate
+    return transition_count
+
 
     
 
