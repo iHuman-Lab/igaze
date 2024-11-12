@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from igaze.gazeplotter import parse_fixations
+from igaze.utils import is_within_aoi
 
 MISSING_VALUE = 2
 
@@ -516,16 +517,35 @@ def analyze_saccades(saccades, distance_between_eyes):
     return {"amplitudes": amplitudes, "frequency": frequency}
 
 
-
-def calculate_entropy(aoi_fixation_counts):
+def aoi_entropy(aoi_fixation_counts):
     """
-    Calculate the entropy based on AOI fixation distribution.
+    Calculate the entropy based on Area of Interest (AOI) fixation distribution.
+
+    Parameters
+    ----------
+    aoi_fixation_counts : dict
+        A dictionary where keys are AOIs and values are the corresponding fixation counts.
+
+    Returns
+    -------
+    float
+        The calculated entropy value based on the fixation distribution.
+
+    Notes
+    -----
+    Entropy is a measure of uncertainty or randomness in a probability distribution. 
+    The function computes probabilities of each AOI being fixated on, and then calculates 
+    the entropy using the formula:
     
-    Parameters:
-    aoi_fixation_counts: Dictionary with AOI as keys and fixation counts as values.
+        H(X) = -Σ (p(x) * log2(p(x)))
+
+    where p(x) is the probability of each AOI based on the fixation counts.
     
-    Returns:
-    The entropy value.
+    Examples
+    --------
+    >>> aoi_counts = {'AOI_1': 5, 'AOI_2': 15, 'AOI_3': 10}
+    >>> calculate_entropy(aoi_counts)
+    1.561278124459132
     """
     fixation_hits = sum(aoi_fixation_counts.values())
     # Calculate probabilities based on fixation counts and compute entropy
@@ -534,8 +554,8 @@ def calculate_entropy(aoi_fixation_counts):
     return entropy
 
 
-    # Function to calculate dwell time and dwell count for a specific AOI
-def calculate_dwell_time_and_dwell_count(df, x_min, x_max, y_min, y_max):
+# Function to calculate dwell time and dwell count for a specific AOI
+def dwell_metrics(df, x_min, x_max, y_min, y_max):
     """
     Calculate the total dwell time and count of gaze points within a specified Area of Interest (AOI) 
     in gaze data.
@@ -666,11 +686,51 @@ def turn_rate(gaze_data, aoi1_bounds, aoi2_bounds):
 
     return transition_count
 
+  
+def gaze_hit_rate_per_aoi(participant_data, aois):
+    """
+    Calculate the gaze hit rate for each AOI based on participants' gaze data.
+    To calculate the hit rate, you count the number of participants
+    who looked at the AOI, and then divide that number by the total number of participants.
+    For example, if there are five participants in a dataset
+    and one person looked at an AOI, the hit rate for that AOI would be 20%.
 
-    
 
+    Parameters
+    ----------
+    participant_data : list of dict
+        A list where each dictionary contains:
+        - 'id': Participant identifier.
+        - 'gaze_points': List of tuples representing gaze points (x, y) for the participant.
+    aois : list of dict
+        A list of dictionaries defining the AOI boundaries. Each dictionary has the keys:
+        - 'name': Name of the AOI.
+        - 'x_min': Minimum x-coordinate of the AOI.
+        - 'x_max': Maximum x-coordinate of the AOI.
+        - 'y_min': Minimum y-coordinate of the AOI.
+        - 'y_max': Maximum y-coordinate of the AOI.
 
+    Returns
+    -------
+    dict
+        A dictionary with AOI names as keys and their corresponding hit rates as values (in percentage).
+    """
+    hit_rates = {}
+    total_participants = len(participant_data)
 
+    if total_participants == 0:
+        return {aoi["name"]: 0.0 for aoi in aois}  # Avoid division by zero if there's no data
 
+    for aoi in aois:
+        gazed_at_aoi_count = 0
 
+        for participant in participant_data:
+            gaze_points = participant["gaze_points"]  # Assuming gaze points are in a list of tuples
+            # Check if any gaze point for this participant is within the AOI
+            if any(is_within_aoi(point, aoi) for point in gaze_points):
+                gazed_at_aoi_count += 1
 
+        # Calculate the hit rate for the current AOI
+        hit_rates[aoi["name"]] = gazed_at_aoi_count / total_participants
+
+    return hit_rates

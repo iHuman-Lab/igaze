@@ -1,4 +1,5 @@
 """Main file."""
+# ruff: noqa: T201
 
 from pathlib import Path
 
@@ -13,7 +14,7 @@ config_path = "configs/config.yml"
 with Path("configs/config.yml").open() as f:
     config = yaml.load(f, Loader=yaml.SafeLoader)
 
-with skip_run("run", "test_data_loading") as check, check():
+with skip_run("run", "test_features") as check, check():
     data = pd.read_csv(config["data_path"])
 
     fixations = find_fixations(
@@ -33,5 +34,4 @@ with skip_run("run", "test_data_loading") as check, check():
         missing=2,
         minlen=5,
     )
-
     print(blinks)
