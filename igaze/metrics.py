@@ -75,7 +75,7 @@ def fixation_metrics(df, areas):
     return fixation_count, fixation_duration, percentage_time
 
 
-def analyze_saccades(df, distance_between_eyes):
+def saccades_metrics(df, distance_between_eyes):
     """
     Analyze saccades to calculate angular amplitudes and frequency.
 
@@ -119,26 +119,6 @@ def analyze_saccades(df, distance_between_eyes):
     return {"amplitudes": amplitudes, "frequency": frequency}
 
 
-def aoi_entropy(aoi_fixation_counts):
-    """
-    Calculate the entropy based on Area of Interest (AOI) fixation distribution.
-
-    Parameters
-    ----------
-    aoi_fixation_counts : dict
-        A dictionary where keys are AOIs and values are the corresponding fixation counts.
-
-    Returns
-    -------
-    float
-        The calculated entropy value based on the fixation distribution.
-    """
-    fixation_hits = sum(aoi_fixation_counts.values())
-    # Calculate probabilities based on fixation counts and compute entropy
-    probabilities = [count / fixation_hits for count in aoi_fixation_counts.values() if fixation_hits > 0]
-    return -sum(p * np.log2(p) for p in probabilities if p > 0)
-
-
 def dwell_metrics(df, x_min, x_max, y_min, y_max):
     """
     Calculate the total dwell time and count of gaze points within a specified Area of Interest (AOI).
@@ -165,6 +145,26 @@ def dwell_metrics(df, x_min, x_max, y_min, y_max):
     dwell_count = len(aoi_gaze_points)
 
     return total_dwell_time_in_aoi, dwell_count
+
+
+def aoi_entropy(aoi_fixation_counts):
+    """
+    Calculate the entropy based on Area of Interest (AOI) fixation distribution.
+
+    Parameters
+    ----------
+    aoi_fixation_counts : dict
+        A dictionary where keys are AOIs and values are the corresponding fixation counts.
+
+    Returns
+    -------
+    float
+        The calculated entropy value based on the fixation distribution.
+    """
+    fixation_hits = sum(aoi_fixation_counts.values())
+    # Calculate probabilities based on fixation counts and compute entropy
+    probabilities = [count / fixation_hits for count in aoi_fixation_counts.values() if fixation_hits > 0]
+    return -sum(p * np.log2(p) for p in probabilities if p > 0)
 
 
 def turn_rate(gaze_data, aoi1_bounds, aoi2_bounds):
