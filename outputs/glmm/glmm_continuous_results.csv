@@ -1,0 +1,22 @@
+outcome,term,coef,se
+mean_fixation_duration,Intercept,32.206163194444436,5.345252344408182
+mean_fixation_duration,C(expertise)[T.novice],5.885355631510426,2.6726261722040907
+mean_fixation_duration,Group Var,1.0,
+total_fixation_time,Intercept,94.53319295247395,0.0
+total_fixation_time,C(expertise)[T.novice],16.682993570963543,36.84420549734316
+total_fixation_time,Group Var,1.0,
+fixation_rate,Intercept,0.08336182745831733,0.01732548115292641
+fixation_rate,C(expertise)[T.novice],0.012824896532048805,0.0
+fixation_rate,Group Var,1.0,
+mean_saccade_duration,Intercept,2460.6476236979165,2352.099503686507
+mean_saccade_duration,C(expertise)[T.novice],1548.67919921875,4704.199007373015
+mean_saccade_duration,Group Var,1.0,
+total_saccade_time,Intercept,2460.6476236979165,2352.099503686507
+total_saccade_time,C(expertise)[T.novice],1548.67919921875,4704.199007373015
+total_saccade_time,Group Var,1.0,
+mean_amplitude,Intercept,54.815986598395284,0.0
+mean_amplitude,C(expertise)[T.novice],28.932609865079712,70.77647842453533
+mean_amplitude,Group Var,1.0,
+saccade_rate,Intercept,0.006412448266024401,0.001257584570706257
+saccade_rate,C(expertise)[T.novice],0.0,0.007545507424237532
+saccade_rate,Group Var,1.0,

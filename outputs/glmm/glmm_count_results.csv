@@ -1,0 +1,9 @@
+outcome,term,coef
+saved_victims,Intercept,-3.196787489144445
+saved_victims,C(expertise)[T.novice],-1.285572726588197
+step_count,Intercept,-3.196794895957171
+step_count,C(expertise)[T.novice],-1.2855691912930238
+n_fixations,Intercept,0.6759223291551401
+n_fixations,C(expertise)[T.novice],0.1283195463270228
+n_saccades,Intercept,-1.8744385522777112
+n_saccades,C(expertise)[T.novice],-0.5399309895846531

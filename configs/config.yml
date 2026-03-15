@@ -1,1 +1,87 @@
-data_path: 'data/sample_eye_data.csv'
+eyetracking:
+  mindur: 50
+  maxdist: 25
+
+  minlen: 5
+  maxvel: 40
+  maxacc: 340
+  coordinate_system: normalized
+
+  display:
+    width_px: 1920
+    height_px: 1080
+
+  columns:
+    x: avg_x
+    y: avg_y
+    time: time
+
+  AOIs:
+    # Fill these bounds with your actual AOI regions.
+    # With coordinate_system: normalized, use values in the 0..1 range.
+    - name: example_aoi
+      x_min: 0.0
+      x_max: 1.0
+      y_min: 0.0
+      y_max: 1.0
+
+  subjects:
+    - subject_id: "1"
+      file: "data/sub-P001_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "novice"
+    - subject_id: "2"
+      file: "data/sub-P002_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "novice"
+    - subject_id: "3"
+      file: "data/sub-P003_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "novice"
+    - subject_id: "4"
+      file: "data/sub-P004_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "novice"
+    - subject_id: "5"
+      file: "data/sub-P005_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "novice"
+    - subject_id: "6"
+      file: "data/sub-P006_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "novice"
+    - subject_id: "7"
+      file: "data/sub-P007_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "expert"
+    - subject_id: "8"
+      file: "data/sub-P008_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "expert"
+    - subject_id: "9"
+      file: "data/sub-P009_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "expert"
+    - subject_id: "10"
+      file: "data/sub-P010_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "expert"
+    - subject_id: "11"
+      file: "data/sub-P011_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "expert"
+    - subject_id: "12"
+      file: "data/sub-P012_ses-S001_task-Default_run-001_sar.xdf"
+      expertise: "expert"
+
+  output:
+    eyetracker_timeline_csv: "outputs/eyetracking/eyetracker_timeline.csv"
+    llm_periods_csv: "outputs/eyetracking/llm_periods.csv"
+    raw_fixations_csv: "outputs/eyetracking/fixations_long.csv"
+    summary_csv: "outputs/eyetracking/fixations_summary.csv"
+    raw_fixations_aio_csv: "outputs/eyetracking/fixations_long_aio.csv"
+    summary_aio_csv: "outputs/eyetracking/fixations_summary_aio.csv"
+    raw_saccades_csv: "outputs/eyetracking/saccades_long.csv"
+    saccades_summary_csv: "outputs/eyetracking/saccades_summary.csv"
+
+glmm:
+  synthetic_conditions:
+    enabled: true
+    providers:
+      - gemini
+      - chatgpt
+    prompts:
+      - detailed
+      - sparse
+    provider_models:
+      gemini: gemini-1.5-flash
+      chatgpt: gpt-4o

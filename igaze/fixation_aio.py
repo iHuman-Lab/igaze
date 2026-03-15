@@ -1,8 +1,8 @@
-"""Fixation extraction for config-driven eye-tracking datasets."""
+"""AOI-aware fixation extraction for config-driven eye-tracking datasets."""
 
 from __future__ import annotations
 
-import sys
+import asyncio
 from pathlib import Path
 
 import pandas as pd
@@ -25,7 +25,19 @@ def _save_frame(project_root: Path, et_cfg: dict, key: str, frame: pd.DataFrame)
     frame.to_csv(out, index=False)
 
 
-def _subject_fixation_frames(subject_record: common.SubjectRecord, et_cfg: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _get_aoi_name(fix_x: float, fix_y: float, aois: list[dict]) -> str | None:
+    for aoi in aois:
+        if aoi["x_min"] <= fix_x <= aoi["x_max"] and aoi["y_min"] <= fix_y <= aoi["y_max"]:
+            return str(aoi["name"])
+    return None
+
+
+def _subject_fixation_aoi_frames(
+
+    subject_record: common.SubjectRecord,
+    et_cfg: dict,
+    aois: list[dict],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     columns = et_cfg["columns"]
     time_series = pd.to_numeric(subject_record.eye_df[columns["time"]], errors="coerce")
     x_series, y_series = common.scale_coordinates(
@@ -61,6 +73,7 @@ def _subject_fixation_frames(subject_record: common.SubjectRecord, et_cfg: dict)
                 "duration": float(duration),
                 "fix_x": float(fix_x),
                 "fix_y": float(fix_y),
+                "AOI": _get_aoi_name(float(fix_x), float(fix_y), aois),
                 **(
                     common.assign_trial(subject_record.trial_df, midpoint)
                     if has_lsl and not subject_record.trial_df.empty
@@ -83,63 +96,35 @@ def _subject_fixation_frames(subject_record: common.SubjectRecord, et_cfg: dict)
         lambda row: row["n_fixations"] / row["total_time"] if row["total_time"] > 0 else 0.0,
         axis=1,
     )
+    for aoi in aois:
+        name = str(aoi["name"])
+        aoi_rows = raw.loc[raw["AOI"] == name] if not raw.empty else raw
+        summary[f"{name}_fixation_count"] = int(len(aoi_rows))
+        summary[f"{name}_fixation_duration"] = float(aoi_rows["duration"].sum()) if not aoi_rows.empty else 0.0
     return raw, summary
 
 
-def export_eyetracker_timeline_from_config(
+async def extract_fixations_from_config_aio(
     config_path: str | Path,
     *,
-    save_output: bool = False,
+    save_output: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     config_path = Path(config_path)
     project_root, et_cfg = common.load_eyetracking_config(config_path)
-    subjects = [common.load_subject_record(project_root, subject) for subject in et_cfg["subjects"]]
-    annotated = _concat_frames([
-        common.with_subject_metadata(
-            common.annotate_eye_samples(subject.eye_df, subject.trial_df),
-            subject.subject_id,
-            subject.task_id,
-            subject.file_path,
+    aois = common.scale_aoi_bounds(et_cfg.get("AOIs", []), et_cfg)
+    tasks = [
+        asyncio.to_thread(
+            _subject_fixation_aoi_frames,
+            common.load_subject_record(project_root, subject),
+            et_cfg,
+            aois,
         )
-        for subject in subjects
-    ])
-    periods = _concat_frames([
-        common.with_subject_metadata(
-            subject.trial_df.assign(duration_seconds=subject.trial_df["trial_end"] - subject.trial_df["trial_start"]),
-            subject.subject_id,
-            subject.task_id,
-            subject.file_path,
-        )
-        for subject in subjects
-        if not subject.trial_df.empty
-    ])
-    if save_output:
-        _save_frame(project_root, et_cfg, "eyetracker_timeline_csv", annotated)
-        _save_frame(project_root, et_cfg, "llm_periods_csv", periods)
-    return annotated, periods
-
-
-def extract_fixations_from_config(
-    config_path: str | Path,
-    *,
-    save_output: bool = False,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    config_path = Path(config_path)
-    project_root, et_cfg = common.load_eyetracking_config(config_path)
-    frames = [
-        _subject_fixation_frames(common.load_subject_record(project_root, subject), et_cfg)
         for subject in et_cfg["subjects"]
     ]
+    frames = await asyncio.gather(*tasks)
     raw_fixations_df = _concat_frames([raw for raw, _ in frames])
     summary_df = _concat_frames([summary for _, summary in frames])
     if save_output:
-        _save_frame(project_root, et_cfg, "raw_fixations_csv", raw_fixations_df)
-        _save_frame(project_root, et_cfg, "summary_csv", summary_df)
+        _save_frame(project_root, et_cfg, "raw_fixations_aio_csv", raw_fixations_df)
+        _save_frame(project_root, et_cfg, "summary_aio_csv", summary_df)
     return raw_fixations_df, summary_df
-
-
-if __name__ == "__main__":
-    extract_fixations_from_config(
-        Path(sys.argv[1]) if len(sys.argv) > 1 else common.default_eyetracking_config_path(__file__),
-        save_output=True,
-    )
