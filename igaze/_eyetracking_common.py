@@ -1,5 +1,4 @@
 """Shared loading and trial-label utilities for eye-tracking analyses."""
-
 from __future__ import annotations
 
 import contextlib
@@ -29,7 +28,7 @@ SACCADE_METRICS = [
 ]
 
 TRIAL_MERGE_KEYS = [
-    "participant_id",
+    "subject_id",
     "trial_id",
     "llm_model",
     "prompt_type",

@@ -5,12 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
-try:
-    from igaze import _eyetracking_common as common
-    from igaze.detectors import saccade_detection
-except ModuleNotFoundError:
-    import _eyetracking_common as common
-    from detectors import saccade_detection
+
+from igaze.detectors import saccade_detection
 
 
 
