@@ -28,24 +28,9 @@ eyetracking:
   subjects: []
 
   output:
-    eyetracker_timeline_csv: "outputs/eyetracking/eyetracker_timeline.csv"
-    llm_periods_csv: "outputs/eyetracking/llm_periods.csv"
     raw_fixations_csv: "outputs/eyetracking/fixations_long.csv"
     summary_csv: "outputs/eyetracking/fixations_summary.csv"
     raw_fixations_aio_csv: "outputs/eyetracking/fixations_long_aio.csv"
     summary_aio_csv: "outputs/eyetracking/fixations_summary_aio.csv"
     raw_saccades_csv: "outputs/eyetracking/saccades_long.csv"
     saccades_summary_csv: "outputs/eyetracking/saccades_summary.csv"
-
-glmm:
-  synthetic_conditions:
-    enabled: true
-    providers:
-      - gemini
-      - chatgpt
-    prompts:
-      - detailed
-      - sparse
-    provider_models:
-      gemini: gemini-1.5-flash
-      chatgpt: gpt-4o

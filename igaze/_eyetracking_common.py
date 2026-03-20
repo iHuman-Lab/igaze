@@ -30,28 +30,11 @@ SACCADE_METRICS = [
 TRIAL_MERGE_KEYS = [
     "subject_id",
     "trial_id",
-    "llm_model",
-    "prompt_type",
-    "llm_provider",
 ]
 
 TRIAL_INFO_FIELDS = (
     "trial_id",
-    "llm_model",
-    "prompt_type",
-    "llm_provider",
 )
-
-DEFAULT_EYETRACKING_OUTPUTS = {
-    "raw_fixations_csv": "outputs/eyetracking/fixations_long.csv",
-    "summary_csv": "outputs/eyetracking/fixations_summary.csv",
-    "raw_fixations_aio_csv": "outputs/eyetracking/fixations_long_aio.csv",
-    "summary_aio_csv": "outputs/eyetracking/fixations_summary_aio.csv",
-    "eyetracker_timeline_csv": "outputs/eyetracking/eyetracker_timeline.csv",
-    "llm_periods_csv": "outputs/eyetracking/llm_periods.csv",
-    "raw_saccades_csv": "outputs/eyetracking/saccades_long.csv",
-    "saccades_summary_csv": "outputs/eyetracking/saccades_summary.csv",
-}
 
 DEFAULT_EYETRACKING_CONFIG = Path("configs") / "config.yml"
 
@@ -81,16 +64,9 @@ def _default_eyetracking_config_path(module_file: str | Path) -> Path:
     return Path(module_file).resolve().parent.parent / DEFAULT_EYETRACKING_CONFIG
 
 
-def _get_output_config(et_cfg: dict) -> dict:
-    return {**DEFAULT_EYETRACKING_OUTPUTS, **et_cfg.get("output", {})}
-
-
-def _get_output_path(project_root: Path, et_cfg: dict, key: str) -> Path:
-    return _resolve_path(project_root, _get_output_config(et_cfg)[key])
-
 
 def _empty_trial_info() -> dict:
-    return dict.fromkeys(TRIAL_INFO_FIELDS)
+    return {"trial_id": None}
 
 
 def _extract_channel_labels(stream_info: dict, default_count: int) -> list[str]:
@@ -99,20 +75,6 @@ def _extract_channel_labels(stream_info: dict, default_count: int) -> list[str]:
         return [channel["label"][0] for channel in channels]
     except (KeyError, IndexError, TypeError):
         return [f"ch{index}" for index in range(default_count)]
-
-
-def _find_game_csv(file_path: Path) -> Path | None:
-    if file_path.suffix.lower() != ".csv":
-        return None
-
-    candidates = sorted(file_path.parent.glob("*_SARGame_*.csv"))
-    if not candidates:
-        candidates = sorted(file_path.parent.glob("*SARGame*.csv"))
-
-    for candidate in candidates:
-        if candidate.resolve() != file_path.resolve():
-            return candidate
-    return None
 
 
 def _load_csv_game_data(file_path: Path) -> pd.DataFrame:
@@ -131,22 +93,18 @@ def _load_csv_game_data(file_path: Path) -> pd.DataFrame:
             payload = json.loads(row[payload_column])
         except (TypeError, json.JSONDecodeError):
             continue
-        if "prompt_type" not in payload or "llm_model" not in payload:
-            continue
         payload["_timestamp"] = float(row["lsl_timestamp"])
-        payload["llm_provider"] = payload.get("llm_provider", payload.get("provider"))
         game_rows.append(payload)
 
     return pd.DataFrame(game_rows)
 
 
-def _load_csv_eye_data(file_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def _load_csv_eye_data(file_path: Path, game_file: Path | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     eye_df = pd.read_csv(file_path)
     if "lsl_timestamp" in eye_df.columns and "_lsl_timestamp" not in eye_df.columns:
         eye_df["_lsl_timestamp"] = pd.to_numeric(eye_df["lsl_timestamp"], errors="coerce")
 
-    game_csv_path = _find_game_csv(file_path)
-    game_df = _load_csv_game_data(game_csv_path) if game_csv_path else pd.DataFrame()
+    game_df = _load_csv_game_data(game_file) if game_file else pd.DataFrame()
     return eye_df, game_df
 
 
@@ -173,10 +131,7 @@ def _load_xdf_data(file_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
                 payload = json.loads(row[0])
             except (TypeError, IndexError, json.JSONDecodeError):
                 continue
-            if "prompt_type" not in payload or "llm_model" not in payload:
-                continue
             payload["_timestamp"] = ts
-            payload["llm_provider"] = payload.get("llm_provider", payload.get("provider"))
             game_rows.append(payload)
 
     if gaze_df.empty:
@@ -185,13 +140,14 @@ def _load_xdf_data(file_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     return gaze_df, pd.DataFrame(game_rows)
 
 
-def _load_subject_data(file_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
-    return _load_xdf_data(file_path) if file_path.suffix.lower() == ".xdf" else _load_csv_eye_data(file_path)
+def _load_subject_data(file_path: Path, game_file: Path | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    return _load_xdf_data(file_path) if file_path.suffix.lower() == ".xdf" else _load_csv_eye_data(file_path, game_file)
 
 
 def _load_subject_record(project_root: Path, subject: dict) -> SubjectRecord:
     file_path = _resolve_path(project_root, subject["file"])
-    eye_df, game_df = _load_subject_data(file_path)
+    game_file = _resolve_path(project_root, subject["game_file"]) if "game_file" in subject else None
+    eye_df, game_df = _load_subject_data(file_path, game_file)
     return SubjectRecord(
         subject_id=str(subject["subject_id"]),
         task_id=subject.get("task_id"),
@@ -206,17 +162,21 @@ def _scale_coordinates(x: pd.Series, y: pd.Series, et_cfg: dict) -> tuple[pd.Ser
     if str(et_cfg.get("coordinate_system", "pixels")).lower() != "normalized":
         return x, y
 
-    display_cfg = et_cfg.get("display", {})
-    return x * float(display_cfg.get("width_px", 1920)), y * float(display_cfg.get("height_px", 1080))
+    display_cfg = et_cfg.get("display") or {}
+    if "width_px" not in display_cfg or "height_px" not in display_cfg:
+        raise ValueError("display.width_px and display.height_px must be set in config when coordinate_system is normalized")
+    return x * float(display_cfg["width_px"]), y * float(display_cfg["height_px"])
 
 
 def _scale_aoi_bounds(aois: list[dict], et_cfg: dict) -> list[dict]:
     if str(et_cfg.get("coordinate_system", "pixels")).lower() != "normalized":
         return aois
 
-    display_cfg = et_cfg.get("display", {})
-    width_px = float(display_cfg.get("width_px", 1920))
-    height_px = float(display_cfg.get("height_px", 1080))
+    display_cfg = et_cfg.get("display") or {}
+    if "width_px" not in display_cfg or "height_px" not in display_cfg:
+        raise ValueError("display.width_px and display.height_px must be set in config when coordinate_system is normalized")
+    width_px = float(display_cfg["width_px"])
+    height_px = float(display_cfg["height_px"])
     return [
         {
             **aoi,
@@ -238,12 +198,11 @@ def _build_trial_windows(game_df: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
     game_df = game_df.sort_values("_timestamp").reset_index(drop=True)
-    provider = game_df["llm_provider"] if "llm_provider" in game_df.columns else pd.Series([None] * len(game_df))
-    trial_change = (
-        (game_df["llm_model"] != game_df["llm_model"].shift(1))
-        | (game_df["prompt_type"] != game_df["prompt_type"].shift(1))
-        | (provider != provider.shift(1))
-    )
+    event_cols = [c for c in game_df.columns if c != "_timestamp"]
+    if event_cols:
+        trial_change = game_df[event_cols].ne(game_df[event_cols].shift()).any(axis=1)
+    else:
+        trial_change = pd.Series([True] + [False] * (len(game_df) - 1), index=game_df.index)
     game_df["trial_id"] = trial_change.cumsum()
 
     return (
@@ -251,9 +210,6 @@ def _build_trial_windows(game_df: pd.DataFrame) -> pd.DataFrame:
         .agg(
             trial_start=("_timestamp", "min"),
             trial_end=("_timestamp", "max"),
-            llm_model=("llm_model", "first"),
-            prompt_type=("prompt_type", "first"),
-            llm_provider=("llm_provider", "first"),
         )
         .reset_index()
     )
@@ -263,7 +219,7 @@ def _trial_durations(trial_df: pd.DataFrame) -> pd.DataFrame:
     if trial_df.empty:
         return pd.DataFrame()
 
-    durations = trial_df[["trial_id", "llm_model", "prompt_type", "llm_provider"]].copy()
+    durations = trial_df[["trial_id"]].copy()
     durations["total_time"] = (trial_df["trial_end"] - trial_df["trial_start"]).astype(float)
     return durations
 
@@ -273,9 +229,6 @@ def _empty_fixation_summary(trial_df: pd.DataFrame, total_time_seconds: float) -
         return pd.DataFrame(
             [{
                 "trial_id": None,
-                "llm_model": None,
-                "prompt_type": None,
-                "llm_provider": None,
                 "n_fixations": 0,
                 "mean_fixation_duration": 0.0,
                 "total_fixation_time": 0.0,
@@ -298,7 +251,7 @@ def _summarize_fixations(
     if subject_fixations_df.empty:
         return _empty_fixation_summary(trial_df, total_time_seconds)
 
-    group_cols = ["trial_id", "llm_model", "prompt_type", "llm_provider"]
+    group_cols = ["trial_id"]
     summary_group = (
         subject_fixations_df.groupby(group_cols, dropna=False)
         .agg(
@@ -323,9 +276,6 @@ def _empty_saccade_summary(trial_df: pd.DataFrame, total_time: float) -> pd.Data
         return pd.DataFrame(
             [{
                 "trial_id": None,
-                "llm_model": None,
-                "prompt_type": None,
-                "llm_provider": None,
                 "n_saccades": 0,
                 "mean_saccade_duration": 0.0,
                 "total_saccade_time": 0.0,
@@ -350,7 +300,7 @@ def _summarize_saccades(
     if subject_saccades_df.empty:
         return _empty_saccade_summary(trial_df, total_time_seconds)
 
-    group_cols = ["trial_id", "llm_model", "prompt_type", "llm_provider"]
+    group_cols = ["trial_id"]
     summary_group = (
         subject_saccades_df.groupby(group_cols, dropna=False)
         .agg(
@@ -393,17 +343,12 @@ def _assign_trial(trial_df: pd.DataFrame, midpoint_timestamp: float) -> dict:
         if mask.any()
         else trial_df.iloc[(trial_df["trial_start"] - midpoint_timestamp).abs().argmin()]
     )
-    return {
-        "trial_id": int(row["trial_id"]),
-        "llm_model": row["llm_model"],
-        "prompt_type": row["prompt_type"],
-        "llm_provider": row["llm_provider"],
-    }
+    return {"trial_id": int(row["trial_id"])}
 
 
 def _annotate_eye_samples(eye_df: pd.DataFrame, trial_df: pd.DataFrame) -> pd.DataFrame:
     annotated = eye_df.copy()
-    for column in ["trial_id", "llm_model", "prompt_type", "llm_provider", "trial_start", "trial_end"]:
+    for column in ["trial_id", "trial_start", "trial_end"]:
         annotated[column] = None
 
     if trial_df.empty or "_lsl_timestamp" not in annotated.columns:
@@ -415,9 +360,6 @@ def _annotate_eye_samples(eye_df: pd.DataFrame, trial_df: pd.DataFrame) -> pd.Da
             & (annotated["_lsl_timestamp"] <= trial_row["trial_end"])
         )
         annotated.loc[mask, "trial_id"] = int(trial_row["trial_id"])
-        annotated.loc[mask, "llm_model"] = trial_row["llm_model"]
-        annotated.loc[mask, "prompt_type"] = trial_row["prompt_type"]
-        annotated.loc[mask, "llm_provider"] = trial_row["llm_provider"]
         annotated.loc[mask, "trial_start"] = float(trial_row["trial_start"])
         annotated.loc[mask, "trial_end"] = float(trial_row["trial_end"])
 
@@ -426,8 +368,6 @@ def _annotate_eye_samples(eye_df: pd.DataFrame, trial_df: pd.DataFrame) -> pd.Da
 
 load_eyetracking_config = _load_eyetracking_config
 default_eyetracking_config_path = _default_eyetracking_config_path
-get_output_config = _get_output_config
-get_output_path = _get_output_path
 SubjectRecord = SubjectRecord
 resolve_path = _resolve_path
 load_subject_data = _load_subject_data

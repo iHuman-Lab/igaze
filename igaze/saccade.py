@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-
 from igaze.detectors import saccade_detection
+
+try:
+    from igaze import _eyetracking_common as common
+except ModuleNotFoundError:
+    import _eyetracking_common as common
 
 
 
@@ -96,9 +99,6 @@ def extract_saccades_from_config(config_path: str | Path) -> tuple[pd.DataFrame,
                     "task_id": subject_record.task_id,
                     "file": str(subject_record.file_path),
                     "trial_id": summary_row["trial_id"],
-                    "llm_model": summary_row["llm_model"],
-                    "prompt_type": summary_row["prompt_type"],
-                    "llm_provider": summary_row["llm_provider"],
                     "n_saccades": n_saccades,
                     "mean_saccade_duration": float(summary_row["mean_saccade_duration"]),
                     "total_saccade_time": float(summary_row["total_saccade_time"]),
@@ -108,23 +108,4 @@ def extract_saccades_from_config(config_path: str | Path) -> tuple[pd.DataFrame,
                 },
             )
 
-    raw_saccades_df = pd.DataFrame(raw_saccades)
-    summary_df = pd.DataFrame(summaries)
-
-    raw_out = common.get_output_path(project_root, et_cfg, "raw_saccades_csv")
-    summary_out = common.get_output_path(project_root, et_cfg, "saccades_summary_csv")
-    raw_out.parent.mkdir(parents=True, exist_ok=True)
-    summary_out.parent.mkdir(parents=True, exist_ok=True)
-    raw_saccades_df.to_csv(raw_out, index=False)
-    summary_df.to_csv(summary_out, index=False)
-
-    return raw_saccades_df, summary_df
-
-
-if __name__ == "__main__":
-    config_arg = (
-        Path(sys.argv[1])
-        if len(sys.argv) > 1
-        else common.default_eyetracking_config_path(__file__)
-    )
-    extract_saccades_from_config(config_arg)
+    return pd.DataFrame(raw_saccades), pd.DataFrame(summaries)
