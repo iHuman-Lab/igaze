@@ -1,91 +1,81 @@
-"""Fixation extraction for config-driven eye-tracking datasets."""
-
-from __future__ import annotations
-
-from pathlib import Path
-
-import pandas as pd
-
-from igaze.detectors import fixation_detection
-
-try:
-    from igaze import _eyetracking_common as common
-except ModuleNotFoundError:
-    import _eyetracking_common as common
+import numpy
 
 
-def _concat_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
-    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+def remove_missing(x, y, time, missing):
+    mx = numpy.array(x == missing, dtype=int)
+    my = numpy.array(y == missing, dtype=int)
+    mask = (mx + my) != 2
+    return x[mask], y[mask], time[mask]
 
 
-def _subject_fixation_frames(subject_record: common.SubjectRecord, et_cfg: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
-    columns = et_cfg["columns"]
-    time_series = pd.to_numeric(subject_record.eye_df[columns["time"]], errors="coerce")
-    x_series, y_series = common.scale_coordinates(
-        pd.to_numeric(subject_record.eye_df[columns["x"]], errors="coerce"),
-        pd.to_numeric(subject_record.eye_df[columns["y"]], errors="coerce"),
-        et_cfg,
-    )
-    _, end_fixations = fixation_detection(
-        x_series.to_numpy(),
-        y_series.to_numpy(),
-        time_series.to_numpy(),
-        missing=et_cfg.get("missing", 0.0),
-        maxdist=et_cfg["maxdist"],
-        mindur=et_cfg["mindur"],
-    )
-    has_lsl = "_lsl_timestamp" in subject_record.eye_df.columns
-    lsl_series = subject_record.eye_df["_lsl_timestamp"] if has_lsl else pd.Series(dtype=float)
-    rows = []
-    for fixation_id, (start_time, end_time, duration, fix_x, fix_y) in enumerate(end_fixations, start=1):
-        start_idx = common.nearest_index(time_series, start_time)
-        end_idx = common.nearest_index(time_series, end_time)
-        midpoint = float((lsl_series.iloc[start_idx] + lsl_series.iloc[end_idx]) / 2) if has_lsl else 0.0
-        rows.append(
-            {
-                "subject_id": subject_record.subject_id,
-                "task_id": subject_record.task_id,
-                "file": str(subject_record.file_path),
-                "fixation_id": fixation_id,
-                "start_idx": start_idx,
-                "end_idx": end_idx,
-                "start_time": float(start_time),
-                "end_time": float(end_time),
-                "duration": float(duration),
-                "fix_x": float(fix_x),
-                "fix_y": float(fix_y),
-                **(
-                    common.assign_trial(subject_record.trial_df, midpoint)
-                    if has_lsl and not subject_record.trial_df.empty
-                    else common.empty_trial_info()
-                ),
-            },
-        )
-    raw = pd.DataFrame(rows)
-    summary = common.with_subject_metadata(
-        common.summarize_fixations(
-            raw,
-            subject_record.trial_df,
-            common.overall_duration_seconds(time_series.to_numpy()),
-        ),
-        subject_record.subject_id,
-        subject_record.task_id,
-        subject_record.file_path,
-    )
-    summary["fixation_rate"] = summary.apply(
-        lambda row: row["n_fixations"] / row["total_time"] if row["total_time"] > 0 else 0.0,
-        axis=1,
-    )
-    return raw, summary
+def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=100, maxdur=700, maxgap=150):
+    """Detects fixations, defined as consecutive samples with an inter-sample
+    distance of less than a set amount of pixels (disregarding missing data).
 
+    arguments
+    x       - numpy array of x positions
+    y       - numpy array of y positions
+    time    - numpy array of timestamps in milliseconds
 
-def extract_fixations_from_config(config_path: str | Path) -> tuple[pd.DataFrame, pd.DataFrame]:
-    config_path = Path(config_path)
-    project_root, et_cfg = common.load_eyetracking_config(config_path)
-    all_raw, all_summaries = [], []
-    for subject in et_cfg.get("subjects", []):
-        subject_record = common.load_subject_record(project_root, subject)
-        raw, summary = _subject_fixation_frames(subject_record, et_cfg)
-        all_raw.append(raw)
-        all_summaries.append(summary)
-    return _concat_frames(all_raw), _concat_frames(all_summaries)
+    keyword arguments
+    missing - value to be used for missing data (default = 0.0)
+    maxdist - maximal inter-sample distance in pixels (default = 25)
+    mindur  - minimal fixation duration in ms (default = 100)
+    maxdur  - maximal fixation duration in ms; longer fixations are removed
+              as tracking artifacts (default = 700)
+    maxgap  - maximal allowed time gap between consecutive valid samples in ms;
+              larger gaps break the fixation (default = 150)
+
+    returns
+    Sfix, Efix
+        Sfix - list of lists, each containing [starttime]
+        Efix - list of lists, each containing [starttime, endtime, duration, endx, endy]
+    """
+
+    x, y, time = remove_missing(x, y, time, missing)
+
+    Sfix = []
+    Efix = []
+
+    si = 0
+    fixstart = False
+    for i in range(1, len(x)):
+        # break fixation if time gap between samples is too large
+        if time[i] - time[i - 1] > maxgap:
+            if fixstart:
+                dur = time[i - 1] - Sfix[-1][0]
+                if mindur <= dur <= maxdur:
+                    Efix.append([Sfix[-1][0], time[i - 1], dur, x[si], y[si]])
+                else:
+                    Sfix.pop(-1)
+                fixstart = False
+            si = i
+            continue
+
+        squared_distance = (x[si] - x[i]) ** 2 + (y[si] - y[i]) ** 2
+        dist = squared_distance ** 0.5 if squared_distance > 0 else 0.0
+
+        if dist <= maxdist and not fixstart:
+            si = i
+            fixstart = True
+            Sfix.append([time[i]])
+        elif dist > maxdist and fixstart:
+            fixstart = False
+            dur = time[i - 1] - Sfix[-1][0]
+            if mindur <= dur <= maxdur:
+                Efix.append([Sfix[-1][0], time[i - 1], dur, x[si], y[si]])
+            else:
+                Sfix.pop(-1)
+            si = i
+        elif not fixstart:
+            si += 1
+
+    # capture last fixation
+    if len(Sfix) > len(Efix):
+        dur = time[len(x) - 1] - Sfix[-1][0]
+        if mindur <= dur <= maxdur:
+            Efix.append([Sfix[-1][0], time[len(x) - 1], dur, x[si], y[si]])
+        else:
+            Sfix.pop(-1)
+
+    return Sfix, Efix

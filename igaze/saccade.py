@@ -1,111 +1,83 @@
-from __future__ import annotations
-
-from pathlib import Path
-
-import pandas as pd
-
-from igaze.detectors import saccade_detection
-
-try:
-    from igaze import _eyetracking_common as common
-except ModuleNotFoundError:
-    import _eyetracking_common as common
+import numpy
 
 
+def remove_missing(x, y, time, missing):
+    mx = numpy.array(x == missing, dtype=int)
+    my = numpy.array(y == missing, dtype=int)
+    mask = (mx + my) != 2
+    return x[mask], y[mask], time[mask]
 
-def extract_saccades_from_config(config_path: str | Path) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Run saccade detection for all subjects in config."""
-    config_path = Path(config_path)
-    project_root, et_cfg = common.load_eyetracking_config(config_path)
-    x_col = et_cfg["columns"]["x"]
-    y_col = et_cfg["columns"]["y"]
-    time_col = et_cfg["columns"]["time"]
-    minlen = et_cfg.get("minlen", 5)
-    maxvel = et_cfg.get("maxvel", 40)
-    maxacc = et_cfg.get("maxacc", 340)
-    missing = et_cfg.get("missing", 0.0)
 
-    raw_saccades, summaries = [], []
+def saccade_detection(x, y, time, missing=0.0, minlen=10, maxvel=1000, maxgap=150, maxdur=15):
+    """Detects saccades, defined as consecutive samples with an inter-sample
+    velocity over a velocity threshold.
 
-    for subject in et_cfg["subjects"]:
-        subject_record = common.load_subject_record(project_root, subject)
-        missing_cols = {x_col, y_col, time_col} - set(subject_record.eye_df.columns)
-        if missing_cols:
-            raise ValueError(f"Missing required columns in {subject_record.file_path}: {sorted(missing_cols)}")
+    arguments
+    x       - numpy array of x positions
+    y       - numpy array of y positions
+    time    - numpy array of timestamps in milliseconds
 
-        x_series = pd.to_numeric(subject_record.eye_df[x_col], errors="coerce")
-        y_series = pd.to_numeric(subject_record.eye_df[y_col], errors="coerce")
-        time_series = pd.to_numeric(subject_record.eye_df[time_col], errors="coerce")
-        x_series, y_series = common.scale_coordinates(x_series, y_series, et_cfg)
+    keyword arguments
+    missing - value to be used for missing data (default = 0.0)
+    minlen  - minimal saccade duration in ms (default = 10)
+    maxvel  - velocity threshold in pixels/second (default = 1000)
+    maxgap  - maximal allowed time gap between consecutive valid samples in ms;
+              larger gaps break the saccade (default = 150)
+    maxdur  - maximal saccade duration in ms; longer saccades are discarded
+              (default = 15)
 
-        _, end_saccades = saccade_detection(
-            x_series.to_numpy(),
-            y_series.to_numpy(),
-            time_series.to_numpy(),
-            missing=missing,
-            minlen=minlen,
-            maxvel=maxvel,
-            maxacc=maxacc,
-        )
+    returns
+    Ssac, Esac
+        Ssac - list of lists, each containing [starttime]
+        Esac - list of lists, each containing [starttime, endtime, duration, startx, starty, endx, endy]
+    """
+    x, y, time = remove_missing(x, y, time, missing)
 
-        has_lsl = "_lsl_timestamp" in subject_record.eye_df.columns
-        lsl_series = subject_record.eye_df["_lsl_timestamp"] if has_lsl else pd.Series(dtype=float)
-        subject_saccades = []
+    Ssac = []
+    Esac = []
 
-        for saccade_id, saccade_end in enumerate(end_saccades, start=1):
-            start_time, end_time, duration, x_start, y_start, x_end, y_end = saccade_end
-            start_idx = common.nearest_index(time_series, start_time)
-            end_idx = common.nearest_index(time_series, end_time)
-            amplitude = ((x_end - x_start) ** 2 + (y_end - y_start) ** 2) ** 0.5
+    # inter-sample distance, time, velocity, acceleration
+    intdist = (numpy.diff(x) ** 2 + numpy.diff(y) ** 2) ** 0.5
+    inttime = numpy.diff(time)
 
-            trial_info = common.empty_trial_info()
-            if has_lsl and not subject_record.trial_df.empty:
-                midpoint = float((lsl_series.iloc[start_idx] + lsl_series.iloc[end_idx]) / 2)
-                trial_info = common.assign_trial(subject_record.trial_df, midpoint)
+    # break velocity calculation where time gap exceeds maxgap
+    gap_mask = inttime > maxgap
+    inttime_safe = numpy.where(gap_mask, numpy.nan, inttime / 1000.0)
 
-            row = {
-                "subject_id": subject_record.subject_id,
-                "task_id": subject_record.task_id,
-                "file": str(subject_record.file_path),
-                "saccade_id": saccade_id,
-                "start_idx": start_idx,
-                "end_idx": end_idx,
-                "start_time": float(start_time),
-                "end_time": float(end_time),
-                "duration": float(duration),
-                "x_start": float(x_start),
-                "y_start": float(y_start),
-                "x_end": float(x_end),
-                "y_end": float(y_end),
-                "amplitude": float(amplitude),
-                **trial_info,
-            }
-            raw_saccades.append(row)
-            subject_saccades.append(row)
+    vel = intdist / inttime_safe
 
-        summary_group = common.summarize_saccades(
-            pd.DataFrame(subject_saccades),
-            subject_record.trial_df,
-            common.overall_duration_seconds(time_series.to_numpy()),
-        )
+    t0i = 0
+    stop = False
+    while not stop:
+        sacstarts = numpy.where(
+            numpy.nan_to_num(vel[1 + t0i:]) > maxvel,
+        )[0]
+        if len(sacstarts) > 0:
+            t1i = t0i + sacstarts[0] + 1
+            if t1i >= len(time) - 1:
+                t1i = len(time) - 2
+            t1 = time[t1i]
+            Ssac.append([t1])
 
-        for _, summary_row in summary_group.iterrows():
-            total_time = float(summary_row["total_time"])
-            n_saccades = int(summary_row["n_saccades"])
-            saccade_rate = n_saccades / total_time if total_time > 0 else 0.0
-            summaries.append(
-                {
-                    "subject_id": subject_record.subject_id,
-                    "task_id": subject_record.task_id,
-                    "file": str(subject_record.file_path),
-                    "trial_id": summary_row["trial_id"],
-                    "n_saccades": n_saccades,
-                    "mean_saccade_duration": float(summary_row["mean_saccade_duration"]),
-                    "total_saccade_time": float(summary_row["total_saccade_time"]),
-                    "mean_amplitude": float(summary_row["mean_amplitude"]),
-                    "total_time": total_time,
-                    "saccade_rate": float(saccade_rate),
-                },
-            )
+            sacends = numpy.where(
+                numpy.nan_to_num(vel[1 + t1i:]) < maxvel,
+            )[0]
+            if len(sacends) > 0:
+                t2i = sacends[0] + 1 + t1i + 1
+                if t2i >= len(time):
+                    t2i = len(time) - 1
+                t2 = time[t2i]
+                dur = t2 - t1
 
-    return pd.DataFrame(raw_saccades), pd.DataFrame(summaries)
+                if minlen <= dur <= maxdur:
+                    Esac.append([t1, t2, dur, x[t1i], y[t1i], x[t2i], y[t2i]])
+                else:
+                    Ssac.pop(-1)
+
+                t0i = t2i
+            else:
+                stop = True
+        else:
+            stop = True
+
+    return Ssac, Esac
