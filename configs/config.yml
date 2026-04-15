@@ -1,1 +1,36 @@
-data_path: 'data/sample_eye_data.csv'
+eyetracking:
+  mindur: 50
+  maxdist: 25
+
+  minlen: 5
+  maxvel: 40
+  maxacc: 340
+  coordinate_system: normalized
+
+  display:
+    width_px: 1920
+    height_px: 1080
+
+  columns:
+    x: avg_x
+    y: avg_y
+    time: time
+
+  AOIs:
+    # Fill these bounds with your actual AOI regions.
+    # With coordinate_system: normalized, use values in the 0..1 range.
+    - name: example_aoi
+      x_min: 0.0
+      x_max: 1.0
+      y_min: 0.0
+      y_max: 1.0
+
+  subjects: []
+
+  output:
+    raw_fixations_csv: "outputs/eyetracking/fixations_long.csv"
+    summary_csv: "outputs/eyetracking/fixations_summary.csv"
+    raw_fixations_aio_csv: "outputs/eyetracking/fixations_long_aio.csv"
+    summary_aio_csv: "outputs/eyetracking/fixations_summary_aio.csv"
+    raw_saccades_csv: "outputs/eyetracking/saccades_long.csv"
+    saccades_summary_csv: "outputs/eyetracking/saccades_summary.csv"

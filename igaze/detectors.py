@@ -1,49 +1,126 @@
-import numpy as np
-import pandas as pd
+# -*- coding: utf-8 -*-
+#
+# This file is part of PyGaze - the open-source toolbox for eye tracking
+#
+# PyGazeAnalyser is a Python module for easily analysing eye-tracking data
+# Copyright (C) 2014  Edwin S. Dalmaijer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>
 
-MISSING_VALUE = 2
+# EyeTribe Reader
+#
+# Reads files as produced by PyTribe (https://github.com/esdalmaijer/PyTribe),
+# and performs a very crude fixation and blink detection: every sample that
+# is invalid (usually coded '0.0') is considered to be part of a blink, and
+# every sample in which the gaze movement velocity is below a threshold is
+# considered to be part of a fixation. For optimal event detection, it would be
+# better to use a different algorithm, e.g.:
+# Nystrom, M., & Holmqvist, K. (2010). An adaptive algorithm for fixation,
+# saccade, and glissade detection in eyetracking data. Behavior Research
+# Methods, 42, 188-204. doi:10.3758/BRM.42.1.188
+#
+# (C) Edwin Dalmaijer, 2014
+# edwin.dalmaijer@psy.ox.ax.uk
+#
+# version 1 (01-Jul-2014)
+
+__author__ = "Edwin Dalmaijer"
 
 
-def remove_missing(df, missing_value=MISSING_VALUE):
+
+def blink_detection(x, y, time, missing=0.0, minlen=10):
+    """Detects blinks, defined as a period of missing data that lasts for at
+    least a minimal amount of samples
+
+    arguments
+
+    x		-	numpy array of x positions
+    y		-	numpy array of y positions
+    time		-	numpy array of EyeTribe timestamps
+
+    keyword arguments
+
+    missing	-	value to be used for missing data (default = 0.0)
+    minlen	-	integer indicating the minimal amount of consecutive
+                            missing samples
+
+    returns
+    Sblk, Eblk
+                            Sblk	-	list of lists, each containing [starttime]
+                            Eblk	-	list of lists, each containing [starttime, endtime, duration]
     """
-    Remove missing values from eye-tracking data based on a specified missing value.
-    Assumes 'avg_x', 'avg_y', and 'time' columns in the DataFrame.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing eye-tracking data with columns 'avg_x', 'avg_y', and 'time'.
-    missing_value : scalar, optional
-        The value representing missing data (default is 2).
+    # empty list to contain data
+    Sblk = []
+    Eblk = []
 
-    Returns
-    -------
-    pd.DataFrame
-        The DataFrame with missing values removed.
-    """
-    # Remove rows where either avg_x or avg_y is equal to missing_value
-    return df[(df["avg_x"] != missing_value) & (df["avg_y"] != missing_value)]
+    # check where the missing samples are
+    mx = numpy.array(x == missing, dtype=int)
+    my = numpy.array(y == missing, dtype=int)
+    miss = numpy.array((mx + my) == 2, dtype=int)
+
+    # check where the starts and ends are (+1 to counteract shift to left)
+    diff = numpy.diff(miss)
+    starts = numpy.where(diff == 1)[0] + 1
+    ends = numpy.where(diff == -1)[0] + 1
+
+    # compile blink starts and ends
+    for i in range(len(starts)):
+        # get starting index
+        s = starts[i]
+        # get ending index
+        if i < len(ends):
+            e = ends[i]
+        elif len(ends) > 0:
+            e = ends[-1]
+        else:
+            e = -1
+        # append only if the duration in samples is equal to or greater than
+        # the minimal duration
+        if e - s >= minlen:
+            # add starting time
+            Sblk.append([time[s]])
+            # add ending time
+            Eblk.append([time[s], time[e], time[e] - time[s]])
+
+    return Sblk, Eblk
 
 
-def detect_blinks(df, missing=0.0, minlen=10):
-    """
-    Detect blinks from eye-tracking data based on missing data points.
-    A blink is defined as a continuous period during which both avg_x and avg_y are equal to the `missing` value.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing eye-tracking data with columns 'avg_x', 'avg_y', and 'time'.
-    missing : float, optional
-        The value to be treated as missing data (default is 0.0).
-    minlen : int, optional
-        The minimum duration (in milliseconds) a period of missing data must last to be considered a blink.
 
-    Returns
-    -------
-    list of dict
-        A list of detected blinks, where each blink is represented as a dictionary
-        containing 'start_time', 'end_time', and 'duration'.
+def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):
+    """Detects fixations, defined as consecutive samples with an inter-sample
+    distance of less than a set amount of pixels (disregarding missing data)
+
+    arguments
+
+    x		-	numpy array of x positions
+    y		-	numpy array of y positions
+    time		-	numpy array of EyeTribe timestamps
+
+    keyword arguments
+
+    missing	-	value to be used for missing data (default = 0.0)
+    maxdist	-	maximal inter sample distance in pixels (default = 25)
+    mindur	-	minimal duration of a fixation in milliseconds; detected
+                            fixation cadidates will be disregarded if they are below
+                            this duration (default = 100)
+
+    returns
+    Sfix, Efix
+                            Sfix	-	list of lists, each containing [starttime]
+                            Efix	-	list of lists, each containing [starttime, endtime, duration, endx, endy]
     """
     # Mark missing data as blink events
     blink_mask = (df["avg_x"] == missing) & (df["avg_y"] == missing)
@@ -77,12 +154,44 @@ def blink_rate(blinks, total_time):
     """
     Calculate the blink rate over a given time period.
 
-    Parameters
-    ----------
-    blinks : list of dict
-        A list of dictionaries containing blink event data.
-    total_time : float
-        Total observation time in seconds.
+    x, y, time = remove_missing(x, y, time, missing)
+
+    # empty list to contain data
+    Sfix = []
+    Efix = []
+
+    # loop through all coordinates
+    si = 0
+    fixstart = False
+    for i in range(1, len(x)):
+        # calculate Euclidean distance from the current fixation coordinate
+        # to the next coordinate
+        squared_distance = (x[si] - x[i]) ** 2 + (y[si] - y[i]) ** 2
+        dist = 0.0
+        if squared_distance > 0:
+            dist = squared_distance**0.5
+        # check if the next coordinate is below maximal distance
+        if dist <= maxdist and not fixstart:
+            # start a new fixation
+            si = 0 + i
+            fixstart = True
+            Sfix.append([time[i]])
+        elif dist > maxdist and fixstart:
+            # end the current fixation
+            fixstart = False
+            # only store the fixation if the duration is ok
+            if time[i - 1] - Sfix[-1][0] >= mindur:
+                Efix.append([Sfix[-1][0], time[i - 1], time[i - 1] - Sfix[-1][0], x[si], y[si]])
+            # delete the last fixation start if it was too short
+            else:
+                Sfix.pop(-1)
+            si = 0 + i
+        elif not fixstart:
+            si += 1
+    # add last fixation end (we can lose it if dist > maxdist is false for the last point)
+    if len(Sfix) > len(Efix):
+        Efix.append([Sfix[-1][0], time[len(x) - 1], time[len(x) - 1] - Sfix[-1][0], x[si], y[si]])
+    return Sfix, Efix
 
     Returns
     -------
@@ -92,49 +201,96 @@ def blink_rate(blinks, total_time):
     blink_count = len(blinks)
     return (blink_count / total_time) * 60 if total_time > 0 else 0
 
+def saccade_detection(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):
+    """Detects saccades, defined as consecutive samples with an inter-sample
+    velocity of over a velocity threshold or an acceleration threshold
 
-def detect_fixations(df, missing=0.0, maxdist=25, mindur=50):
+    arguments
+
+    x		-	numpy array of x positions
+    y		-	numpy array of y positions
+    time		-	numpy array of tracker timestamps in milliseconds
+
+    keyword arguments
+
+    missing	-	value to be used for missing data (default = 0.0)
+    minlen	-	minimal length of saccades in milliseconds; all detected
+                            saccades with len(sac) < minlen will be ignored
+                            (default = 5)
+    maxvel	-	velocity threshold in pixels/second (default = 40)
+    maxacc	-	acceleration threshold in pixels / second**2
+                            (default = 340)
+
+    returns
+    Ssac, Esac
+                    Ssac	-	list of lists, each containing [starttime]
+                    Esac	-	list of lists, each containing [starttime, endtime, duration, startx, starty, endx, endy]
     """
-    Identify eye fixations from eye-tracking data based on spatial and temporal criteria.
+    x, y, time = remove_missing(x, y, time, missing)
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing eye-tracking data with columns 'avg_x', 'avg_y', and 'time'.
-    missing : float, optional
-        The value to be treated as missing data (default is 0.0).
-    maxdist : float, optional
-        The maximum distance (in pixels) between consecutive points to be
-        considered part of the same fixation (default is 25).
-    mindur : int, optional
-        The minimum duration (in milliseconds) a sequence of points must last
-        to be considered a fixation (default is 50).
+    # CONTAINERS
+    Ssac = []
+    Esac = []
 
-    Returns
-    -------
-    list of dict
-        A list of fixations, each represented by a dictionary with
-        'start_time', 'end_time', 'duration', 'x_mean', 'y_mean', and 'count'.
-    """
-    # Filter out missing data
-    df_cleaned = df[(df["avg_x"] != missing) & (df["avg_y"] != missing)]
+    # INTER-SAMPLE MEASURES
+    # the distance between samples is the square root of the sum
+    # of the squared horizontal and vertical interdistances
+    intdist = (numpy.diff(x) ** 2 + numpy.diff(y) ** 2) ** 0.5
+    # get inter-sample times
+    inttime = numpy.diff(time)
+    # recalculate inter-sample times to seconds
+    inttime = inttime / 1000.0
 
-    # Calculate the distance between consecutive points
-    distances = np.sqrt(np.diff(df_cleaned["avg_x"]) ** 2 + np.diff(df_cleaned["avg_y"]) ** 2)
+    # VELOCITY AND ACCELERATION
+    # the velocity between samples is the inter-sample distance
+    # divided by the inter-sample time
+    vel = intdist / inttime
+    # the acceleration is the sample-to-sample difference in
+    # eye movement velocity
+    acc = numpy.diff(vel)
 
-    fixations = []
-    current_fixation = []
+    # SACCADE START AND END
+    t0i = 0
+    stop = False
+    while not stop:
+        # saccade start (t1) is when the velocity or acceleration
+        # surpass threshold, saccade end (t2) is when both return
+        # under threshold
 
-    for i in range(len(df_cleaned)):
-        if i == 0 or (len(current_fixation) > 0 and distances[i - 1] <= maxdist):
-            current_fixation.append(df_cleaned.iloc[i])
-        elif len(current_fixation) > 0:
-            start_time = current_fixation[0]["time"]
-            end_time = current_fixation[-1]["time"]
-            duration = end_time - start_time
-            if duration >= mindur:
-                fixations.append(current_fixation)
-            current_fixation = [df_cleaned.iloc[i]]
+        # detect saccade starts
+        sacstarts = numpy.where((vel[1 + t0i :] > maxvel).astype(int) + (acc[t0i:] > maxacc).astype(int) >= 1)[0]
+        if len(sacstarts) > 0:
+            # timestamp for starting position
+            t1i = t0i + sacstarts[0] + 1
+            if t1i >= len(time) - 1:
+                t1i = len(time) - 2
+            t1 = time[t1i]
+
+            # add to saccade starts
+            Ssac.append([t1])
+
+            # detect saccade endings
+            sacends = numpy.where((vel[1 + t1i :] < maxvel).astype(int) + (acc[t1i:] < maxacc).astype(int) == 2)[0]
+            if len(sacends) > 0:
+                # timestamp for ending position
+                t2i = sacends[0] + 1 + t1i + 2
+                if t2i >= len(time):
+                    t2i = len(time) - 1
+                t2 = time[t2i]
+                dur = t2 - t1
+
+                # ignore saccades that did not last long enough
+                if dur >= minlen:
+                    # add to saccade ends
+                    Esac.append([t1, t2, dur, x[t1i], y[t1i], x[t2i], y[t2i]])
+                else:
+                    # remove last saccade start on too low duration
+                    Ssac.pop(-1)
+
+                # update t0i
+                t0i = 0 + t2i
+            else:
+                stop = True
         else:
             current_fixation = [df_cleaned.iloc[i]]
 
@@ -160,71 +316,4 @@ def detect_fixations(df, missing=0.0, maxdist=25, mindur=50):
             },
         )
 
-    return fixation_results
-
-
-def detect_saccades(df, missing=0.0, minlen=5, maxvel=40, maxacc=340):
-    """
-    Detect saccades from eye-tracking data based on velocity and acceleration.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing eye-tracking data with columns 'avg_x', 'avg_y', and 'time'.
-    missing : float, optional
-        The value to be treated as missing data (default is 0.0).
-    minlen : int, optional
-        The minimum duration (in milliseconds) a saccade must last to be detected (default is 5).
-    maxvel : float, optional
-        The maximum velocity (in pixels per millisecond) for a movement to be considered a saccade (default is 40).
-    maxacc : float, optional
-        The maximum acceleration (in pixels per millisecond squared) for a movement
-        to be considered a saccade (default is 340).
-
-    Returns
-    -------
-    list of dict
-        A list of detected saccades, where each saccade is represented as a dictionary containing
-        'start_time', 'end_time', 'duration', 'x_start', 'y_start', 'x_end', 'y_end'.
-    """
-    df_cleaned = df[(df["avg_x"] != missing) & (df["avg_y"] != missing)]
-
-    if len(df_cleaned) < MISSING_VALUE:
-        return []
-
-    dx = np.diff(df_cleaned["avg_x"])
-    dy = np.diff(df_cleaned["avg_y"])
-    dt = np.diff(df_cleaned["time"])
-
-    velocity = np.sqrt(dx**2 + dy**2) / dt
-    acceleration = np.diff(velocity) / dt[1:]
-
-    saccades = []
-    current_saccade = None
-
-    for i in range(len(velocity)):
-        if velocity[i] > maxvel and (i == 0 or acceleration[i - 1] < maxacc):
-            if current_saccade is None:
-                current_saccade = {
-                    "start_time": df_cleaned["time"].iloc[i],
-                    "x_start": df_cleaned["avg_x"].iloc[i],
-                    "y_start": df_cleaned["avg_y"].iloc[i],
-                }
-        elif current_saccade is not None:
-            current_saccade["end_time"] = df_cleaned["time"].iloc[i - 1]
-            current_saccade["duration"] = current_saccade["end_time"] - current_saccade["start_time"]
-            current_saccade["x_end"] = df_cleaned["avg_x"].iloc[i - 1]
-            current_saccade["y_end"] = df_cleaned["avg_y"].iloc[i - 1]
-            if current_saccade["duration"] >= minlen:
-                saccades.append(current_saccade)
-            current_saccade = None
-
-    if current_saccade is not None:
-        current_saccade["end_time"] = df_cleaned["time"].iloc[-1]
-        current_saccade["duration"] = current_saccade["end_time"] - current_saccade["start_time"]
-        current_saccade["x_end"] = df_cleaned["avg_x"].iloc[-1]
-        current_saccade["y_end"] = df_cleaned["avg_y"].iloc[-1]
-        if current_saccade["duration"] >= minlen:
-            saccades.append(current_saccade)
-
-    return saccades
+    return Ssac, Esac
