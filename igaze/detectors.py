@@ -37,7 +37,6 @@
 
 __author__ = "Edwin Dalmaijer"
 
-import numpy
 
 
 def blink_detection(x, y, time, missing=0.0, minlen=10):
@@ -98,13 +97,6 @@ def blink_detection(x, y, time, missing=0.0, minlen=10):
     return Sblk, Eblk
 
 
-def remove_missing(x, y, time, missing):
-    mx = numpy.array(x == missing, dtype=int)
-    my = numpy.array(y == missing, dtype=int)
-    x = x[(mx + my) != 2]
-    y = y[(mx + my) != 2]
-    time = time[(mx + my) != 2]
-    return x, y, time
 
 
 def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):
@@ -130,6 +122,37 @@ def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):
                             Sfix	-	list of lists, each containing [starttime]
                             Efix	-	list of lists, each containing [starttime, endtime, duration, endx, endy]
     """
+    # Mark missing data as blink events
+    blink_mask = (df["avg_x"] == missing) & (df["avg_y"] == missing)
+    df["is_blink"] = blink_mask
+
+    blinks = []
+    current_blink = None
+
+    for i in range(len(df)):
+        if df["is_blink"].iloc[i]:
+            if current_blink is None:
+                current_blink = {"start_time": df["time"].iloc[i]}
+        elif current_blink is not None:
+            current_blink["end_time"] = df["time"].iloc[i - 1]
+            current_blink["duration"] = current_blink["end_time"] - current_blink["start_time"]
+            if current_blink["duration"] >= minlen:
+                blinks.append(current_blink)
+            current_blink = None
+
+    # Check if there's an ongoing blink at the end
+    if current_blink is not None:
+        current_blink["end_time"] = df["time"].iloc[-1]
+        current_blink["duration"] = current_blink["end_time"] - current_blink["start_time"]
+        if current_blink["duration"] >= minlen:
+            blinks.append(current_blink)
+
+    return blinks
+
+
+def blink_rate(blinks, total_time):
+    """
+    Calculate the blink rate over a given time period.
 
     x, y, time = remove_missing(x, y, time, missing)
 
@@ -170,6 +193,13 @@ def fixation_detection(x, y, time, missing=0.0, maxdist=25, mindur=50):
         Efix.append([Sfix[-1][0], time[len(x) - 1], time[len(x) - 1] - Sfix[-1][0], x[si], y[si]])
     return Sfix, Efix
 
+    Returns
+    -------
+    float
+        The blink rate (blinks per minute).
+    """
+    blink_count = len(blinks)
+    return (blink_count / total_time) * 60 if total_time > 0 else 0
 
 def saccade_detection(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):
     """Detects saccades, defined as consecutive samples with an inter-sample
@@ -262,6 +292,28 @@ def saccade_detection(x, y, time, missing=0.0, minlen=5, maxvel=40, maxacc=340):
             else:
                 stop = True
         else:
-            stop = True
+            current_fixation = [df_cleaned.iloc[i]]
+
+    # Check if there's an ongoing fixation at the end
+    if len(current_fixation) > 0:
+        start_time = current_fixation[0]["time"]
+        end_time = current_fixation[-1]["time"]
+        duration = end_time - start_time
+        if duration >= mindur:
+            fixations.append(current_fixation)
+
+    fixation_results = []
+    for fixation in fixations:
+        fixation_data = pd.DataFrame(fixation)
+        fixation_results.append(
+            {
+                "start_time": fixation_data["time"].iloc[0],
+                "end_time": fixation_data["time"].iloc[-1],
+                "duration": fixation_data["time"].iloc[-1] - fixation_data["time"].iloc[0],
+                "x_mean": fixation_data["avg_x"].mean(),
+                "y_mean": fixation_data["avg_y"].mean(),
+                "count": len(fixation_data),
+            },
+        )
 
     return Ssac, Esac
